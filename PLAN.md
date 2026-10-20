@@ -1,6 +1,6 @@
 # Plan d'implémentation
 
-État au 21 octobre 2026 : version 0.3.0 avec imports PDF texte et scans par OCR français local, parcours CSV et choix explicite des trimestres T1 à T4 avec l’année. Aucun déploiement public.
+État au 21 octobre 2026 : version 0.4.0 avec lots de PDF texte/scannés, glisser-déposer, contrôles par document, logo JG Avocat et identité du modèle de conclusions. Parcours CSV et choix explicite des trimestres conservés. Aucun déploiement public.
 
 ## Lot 1 — Fondation
 - [x] Initialiser React/TypeScript, Node.js/TypeScript, SQLite et lockfile npm.
@@ -39,6 +39,9 @@ les calculs se recoupent, les données sont retrouvées au redémarrage.
 - [x] Sources PDF persistantes, sauvegarde format 2 et lecture des anciennes sauvegardes CSV format 1.
 - [x] Documentation des formats réellement testés : exemples fictifs à colonnes de type Société Générale, texte multi-pages et scan lisible.
 - [x] Correctif Windows des chemins de ressources PDF.js : erreur « Invalid factory url … must include trailing slash » reproduite et couverte par un test de régression pour les polices, CMaps et modules WASM.
+- [x] Lots jusqu’à 20 PDF / 50 Mo, sélection multiple et glisser-déposer ; lecture successive, compte modifiable, corrections et confirmation indépendantes.
+- [x] Erreurs par fichier, passage au suivant, réessai et bilan des imports réussis / erreurs / fichiers passés ; imports précédents conservés.
+- [x] Contrôle des doublons entre fichiers du lot, OCR, PDF protégé et reprise après échec d’enregistrement vérifiés dans le navigateur.
 - [ ] Vérification sur un relevé Société Générale réel de l’utilisateur.
 - [ ] Paiements partiels, commissions et cas documentaires avancés.
 
@@ -51,5 +54,6 @@ Les détails des vérifications réellement exécutées sont dans docs/RECETTE.m
 
 ## Identité visuelle du cabinet
 - [x] Référence confirmée par l’utilisateur : https://godefroy-avocat.fr/ ; reprendre son logo, ses couleurs et ses polices.
-- [ ] Récupérer les fichiers ou une copie du site : accès réseau au domaine bloqué depuis cet environnement (HTTP 403 lors du tunnel HTTPS), y compris après tentative autorisée hors sandbox.
-- [ ] Intégrer localement les éléments réels de cette identité, puis vérifier leur rendu. Aucun logo du cabinet ni aucune charte spécifique n’est encore intégré dans la version 0.3.0.
+- [x] Éléments récupérés depuis le modèle **Conclusions.docx** fourni par l’utilisateur : logo original, nom, typographies et présentation noir et blanc. Le site reste bloqué depuis l’environnement ; le modèle constitue la référence effective de cette version.
+- [x] Logo PNG original intégré localement sans modification, en-tête du cabinet, palette noir/blanc/gris, Century Gothic et Tahoma avec polices de secours locales.
+- [x] Rendu bureau/petite largeur vérifié et absence d’appels réseau externes contrôlée. Document Word et contenu juridique exclus du dépôt.

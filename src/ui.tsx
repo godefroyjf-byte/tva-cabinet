@@ -8,11 +8,11 @@ export async function request<T>(path:string,mode:Mode,body?:unknown):Promise<T>
   return result as T;
 }
 export const errorText=(e:unknown)=>e instanceof Error?e.message:'Une erreur est survenue.';
-export function Modal({title,children,onClose,wide=false}:{title:string;children:ReactNode;onClose:()=>void;wide?:boolean}) {
+export function Modal({title,children,onClose,wide=false,canClose=true}:{title:string;children:ReactNode;onClose:()=>void;wide?:boolean;canClose?:boolean}) {
   const ref=useRef<HTMLDialogElement>(null);
   useEffect(()=>{const dialog=ref.current;dialog?.showModal();return ()=>dialog?.close();},[]);
-  return <dialog ref={ref} className={wide?'modal wide':'modal'} onCancel={e=>{e.preventDefault();onClose();}}>
-    <header className="modal-head"><h2>{title}</h2><button aria-label="Fermer la fenêtre" className="icon" onClick={onClose}>×</button></header>{children}
+  return <dialog ref={ref} className={wide?'modal wide':'modal'} onCancel={e=>{e.preventDefault();if(canClose)onClose();}}>
+    <header className="modal-head"><h2>{title}</h2><button aria-label="Fermer la fenêtre" className="icon" disabled={!canClose} onClick={onClose}>×</button></header>{children}
   </dialog>;
 }
 export function MoneyInput({value,onChange,label,nullable=false,min,max}:{value:number|null;onChange:(n:number|null)=>void;label:string;nullable?:boolean;min?:number;max?:number}) {

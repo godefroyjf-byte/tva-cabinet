@@ -2,21 +2,21 @@ import React,{useEffect,useRef,useState,type MouseEvent} from 'react';
 import { inputMoney,money,sumCents } from '../shared/model.ts';
 import { defaultPdfLayout,type PdfLayout,type PdfRequest,type PdfProgress } from '../shared/pdf.ts';
 import type { PdfPreview } from '../server/pdf-preview.ts';
-import {Modal,MoneyInput,errorText,request,type Mode} from './ui.tsx';
+import {MoneyInput,errorText,request,type Mode} from './ui.tsx';
 
 type Preview=PdfPreview&{alreadyImported:boolean};
 type JobStatus={jobId:string;status:'reading'|'ready'|'error';error?:string;progress:PdfProgress;pages?:{number:number;width:number;height:number;method:'text'|'ocr'}[]};
 type Zone='date'|'label'|'debit'|'credit'|'amount';
 const zoneLabels:Record<Zone,string>={date:'Date d’opération',label:'Libellé',debit:'Débit',credit:'Crédit',amount:'Montant signé'};
-export function PdfImportDialog({mode,accounts,onClose,onDone}:{mode:Mode;accounts:string[];onClose:()=>void;onDone:(count:number)=>Promise<void>}) {
+export function PdfReview({mode,file,account,onBusyChange,onSavingChange,onFailure,onClose,onDone,autoRead=false}:{mode:Mode;file:File;account:string;onBusyChange:(busy:boolean)=>void;onSavingChange:(saving:boolean)=>void;onFailure:(error:string)=>void;onClose:()=>void;onDone:(count:number)=>Promise<void>;autoRead?:boolean}) {
   const [source,setSource]=useState<{filename:string;base64:string}|null>(null);
-  const [account,setAccount]=useState(accounts[0]??'Société Générale');
   const [forceOcr,setForceOcr]=useState(false),[jobId,setJobId]=useState('');
   const jobRef=useRef(''),alive=useRef(true),imageBox=useRef<HTMLDivElement>(null);
   const [status,setStatus]=useState<JobStatus|null>(null),[preview,setPreview]=useState<Preview|null>(null);
   const [options,setOptions]=useState<PdfRequest|null>(null),[analysed,setAnalysed]=useState('');
   const [selected,setSelected]=useState<number[]>([]),[reviewed,setReviewed]=useState(false),[acceptRejected,setAcceptRejected]=useState(false),[duplicates,setDuplicates]=useState(false);
   const [error,setError]=useState(''),[busy,setBusy]=useState(false),[pdfPage,setPdfPage]=useState(1),[tablePage,setTablePage]=useState(0);
+  const [saving,setSaving]=useState(false);
   const [zoom,setZoom]=useState('fit');
   const [zone,setZone]=useState<Zone>('date'),[drawing,setDrawing]=useState(false),[anchor,setAnchor]=useState<number|null>(null);
   const [highlight,setHighlight]=useState<{page:number;top:number}|null>(null);
@@ -24,6 +24,22 @@ export function PdfImportDialog({mode,accounts,onClose,onDone}:{mode:Mode;accoun
     alive.current=true;
     return ()=>{alive.current=false;const id=jobRef.current;if(id)void request('/pdf/jobs/'+id+'/cancel',mode,{}).catch(()=>{});};
   },[mode]);
+  useEffect(()=>{onBusyChange(busy);},[busy,onBusyChange]);
+  useEffect(()=>{setOptions(value=>value?{...value,account}:value);setReviewed(false);},[account]);
+  useEffect(()=>{
+    let cancelled=false;
+    async function load() {
+      try {
+        const bytes=new Uint8Array(await file.arrayBuffer());let binary='';
+        for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+        if(cancelled)return;
+        const value={filename:file.name,base64:btoa(binary)};
+        setSource(value);
+        if(autoRead)await start(value);
+      }catch(e){if(!cancelled){setError(errorText(e));onFailure(errorText(e));}}
+    }
+    void load();return()=>{cancelled=true;};
+  },[file]);
   const signature=(value:PdfRequest)=>JSON.stringify(value);
   async function rebuild(value:PdfRequest) {
     setBusy(true);setError('');setReviewed(false);
@@ -32,7 +48,8 @@ export function PdfImportDialog({mode,accounts,onClose,onDone}:{mode:Mode;accoun
       if(!alive.current)return;
       setPreview(p);setOptions(p.options);setAnalysed(signature(p.options));
       setSelected(p.rows.filter(row=>!row.error&&!row.duplicate).map(row=>row.line));setTablePage(0);
-    } catch(e) {if(alive.current)setError(errorText(e));}
+      onFailure('');
+    } catch(e) {if(alive.current){setError(errorText(e));onFailure(errorText(e));}}
     finally {if(alive.current)setBusy(false);}
   }
   useEffect(()=>{
@@ -43,10 +60,10 @@ export function PdfImportDialog({mode,accounts,onClose,onDone}:{mode:Mode;accoun
         const next=await request<JobStatus>('/pdf/jobs/'+jobId,mode);
         if(cancelled)return;
         setStatus(next);
-        if(next.status==='error'){setError(next.error??'Ce PDF ne peut pas être lu.');setBusy(false);return;}
+        if(next.status==='error'){const message=next.error??'Ce PDF ne peut pas être lu.';setError(message);onFailure(message);setBusy(false);return;}
         if(next.status==='ready'){await rebuild({jobId,account});return;}
         timer=setTimeout(()=>void poll(),450);
-      } catch(e) {if(!cancelled){setError(errorText(e));setBusy(false);}}
+      } catch(e) {if(!cancelled){setError(errorText(e));onFailure(errorText(e));setBusy(false);}}
     }
     void poll();
     return ()=>{cancelled=true;clearTimeout(timer);};
@@ -60,27 +77,17 @@ export function PdfImportDialog({mode,accounts,onClose,onDone}:{mode:Mode;accoun
     },60_000);
     return ()=>clearInterval(timer);
   },[jobId,mode,status?.status]);
-  async function pick(file?:File) {
-    if(!file)return;
-    setError('');
-    if(file.size>10_000_000){setError('Choisissez un PDF de 10 Mo maximum.');return;}
-    if(!file.name.toLowerCase().endsWith('.pdf')){setError('Choisissez un fichier PDF.');return;}
-    if(jobRef.current){await request('/pdf/jobs/'+jobRef.current+'/cancel',mode,{}).catch(()=>{});jobRef.current='';setJobId('');}
-    const bytes=new Uint8Array(await file.arrayBuffer());let binary='';
-    for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
-    setSource({filename:file.name,base64:btoa(binary)});setPreview(null);setOptions(null);setStatus(null);setReviewed(false);
-  }
-  async function start() {
-    if(!source||!account.trim())return;
+  async function start(inputSource=source) {
+    if(!inputSource||!account.trim())return;
     if(preview&&!window.confirm('Relire le document et remplacer les corrections de cet aperçu ?'))return;
-    setBusy(true);setError('');setPreview(null);setOptions(null);setReviewed(false);setPdfPage(1);
+    setBusy(true);setError('');onFailure('');setPreview(null);setOptions(null);setReviewed(false);setPdfPage(1);
     try {
       if(jobRef.current)await request('/pdf/jobs/'+jobRef.current+'/cancel',mode,{}).catch(()=>{});
-      const response=await request<{jobId:string}>('/pdf/jobs',mode,{...source,forceOcr});
+      const response=await request<{jobId:string}>('/pdf/jobs',mode,{...inputSource,forceOcr});
       if(!alive.current){void request('/pdf/jobs/'+response.jobId+'/cancel',mode,{}).catch(()=>{});return;}
       jobRef.current=response.jobId;setJobId(response.jobId);
       setStatus({jobId:response.jobId,status:'reading',progress:{page:0,total:0,stage:'Ouverture du PDF…'}});
-    } catch(e) {setError(errorText(e));setBusy(false);}
+    } catch(e) {if(alive.current){setError(errorText(e));onFailure(errorText(e));setBusy(false);}}
   }
   function change(patch:Partial<PdfRequest>) {if(options){setOptions({...options,...patch});setReviewed(false);}}
   function edit(row:Preview['rows'][number],field:'date'|'label'|'amount',text:string) {
@@ -111,11 +118,12 @@ export function PdfImportDialog({mode,accounts,onClose,onDone}:{mode:Mode;accoun
   }
   async function commit() {
     if(!options)return;
-    setBusy(true);setError('');
+    setBusy(true);setSaving(true);onSavingChange(true);setError('');onFailure('');
     try {
       const result=await request<{count:number}>('/pdf/import',mode,{...options,selectedLines:selected,acceptRejected,confirmDuplicates:duplicates,reviewed});
       await onDone(result.count);
-    } catch(e) {setError(errorText(e));setBusy(false);}
+    } catch(e) {if(alive.current){setError(errorText(e));onFailure(errorText(e));setBusy(false);}}
+    finally {setSaving(false);onSavingChange(false);}
   }
   const dirty=!!options&&signature(options)!==analysed;
   const rows=preview?.rows.slice(tablePage*30,(tablePage+1)*30)??[];
@@ -123,13 +131,10 @@ export function PdfImportDialog({mode,accounts,onClose,onDone}:{mode:Mode;accoun
   const zones:Zone[]=layout.mode==='signed'?['date','label','amount']:['date','label','debit','credit'];
   const selectedDuplicates=preview?.rows.some(row=>row.duplicate&&selected.includes(row.line));
   const balanceBlocked=!!preview&&(preview.balanceDifference!==null&&preview.balanceDifference!==0||preview.balanceDetected&&preview.balanceDifference===null);
-  return <Modal title="Importer un relevé PDF" wide onClose={onClose}>
-    <p>Lecture locale des relevés bancaires, avec détection des colonnes de type Société Générale. Les pages scannées sont reconnues sur votre ordinateur. <strong>Aucun document n’est envoyé à un service externe.</strong></p>
+  return <div className="pdf-review-content">
     {error&&<p role="alert" className="notice error">{error}</p>}
-    <div className="form-grid pdf-upload">
-      <label>Compte bancaire<input aria-label="Compte bancaire PDF" list="pdf-accounts" disabled={busy} value={account} maxLength={100} onChange={event=>{setAccount(event.target.value);change({account:event.target.value});}}/><datalist id="pdf-accounts">{accounts.map(a=><option key={a}>{a}</option>)}</datalist></label>
-      <label>Relevé PDF<input aria-label="Relevé PDF" type="file" accept=".pdf,application/pdf" disabled={busy} onChange={event=>void pick(event.target.files?.[0]).catch(e=>setError(errorText(e)))}/></label>
-      <div className="pdf-read"><button className="primary" onClick={start} disabled={busy||!source||!account.trim()}>{preview?'Relire le PDF':'Lire le PDF'}</button><small>10 Mo · 30 pages maximum</small></div>
+    <div className="pdf-read">
+      <button className="primary" onClick={()=>void start()} disabled={busy||!source||!account.trim()}>{preview?'Relire le PDF':'Lire le PDF'}</button><small>10 Mo · 30 pages maximum par PDF</small>
     </div>
     <label className="check"><input type="checkbox" checked={forceOcr} disabled={busy} onChange={event=>setForceOcr(event.target.checked)}/>Forcer l’OCR si le texte du PDF est illisible (plus lent).</label>
     {!preview&&!busy&&<p className="hint">Vous pouvez d’abord essayer <a download href="/api/example-pdf">notre relevé PDF fictif</a>. Les documents protégés doivent être déverrouillés sur votre ordinateur.</p>}
@@ -190,8 +195,8 @@ export function PdfImportDialog({mode,accounts,onClose,onDone}:{mode:Mode;accoun
       {preview.errorCount>0&&<label className="check"><input type="checkbox" checked={acceptRejected} onChange={event=>setAcceptRejected(event.target.checked)}/>J’accepte l’exclusion des {preview.errorCount} lignes invalides signalées.</label>}
       {selectedDuplicates&&<label className="check"><input type="checkbox" checked={duplicates} onChange={event=>setDuplicates(event.target.checked)}/>Je confirme que les doublons sélectionnés correspondent à des mouvements distincts.</label>}
       <label className="check pdf-confirm"><input type="checkbox" checked={reviewed} disabled={dirty||busy} onChange={event=>setReviewed(event.target.checked)}/>J’ai comparé les lignes sélectionnées, les lignes ignorées, les dates, les signes et les totaux avec le PDF d’origine.</label>
-      <div className="modal-actions"><span>{selected.length} mouvement(s) sélectionné(s) · total sélectionné {money(sumCents(preview.rows.filter(row=>selected.includes(row.line)).map(row=>row.cents)))}</span><button onClick={onClose}>Fermer</button><button className="primary" onClick={commit} disabled={busy||dirty||!reviewed||!selected.length||preview.alreadyImported||balanceBlocked||preview.errorCount>0&&!acceptRejected||!!selectedDuplicates&&!duplicates}>Importer {selected.length} mouvements PDF</button></div>
+      <div className="modal-actions"><span>{selected.length} mouvement(s) sélectionné(s) · total sélectionné {money(sumCents(preview.rows.filter(row=>selected.includes(row.line)).map(row=>row.cents)))}</span><button onClick={onClose} disabled={saving}>Fermer</button><button className="primary" onClick={commit} disabled={busy||dirty||!reviewed||!selected.length||preview.alreadyImported||balanceBlocked||preview.errorCount>0&&!acceptRejected||!!selectedDuplicates&&!duplicates}>Importer {selected.length} mouvements PDF</button></div>
       <p className="hint">Les mouvements importés resteront « à vérifier » pour la qualification fiscale. La lecture du relevé ne confirme pas la TVA.</p>
     </>}
-  </Modal>;
+  </div>;
 }

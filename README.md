@@ -1,10 +1,25 @@
-# TVA Cabinet — version locale 0.3.0
+# TVA Cabinet — version locale 0.4.0
 
 Importer directement ses relevés **PDF**, qualifier les mouvements par clic, séparer la TVA confirmée des estimations, exporter la vue et retrouver ses données au redémarrage. Les PDF contenant du texte et les scans lisibles sont traités localement, avec reconnaissance de texte en français (OCR) pour les scans. Aucun CSV n’est nécessaire. Application française mono-utilisateur : React/TypeScript, Node.js 24 et SQLite. Aucun compte, abonnement ni clé API.
 
 La version **0.2.1** corrige l’erreur Windows « Invalid factory url … must include trailing slash » lors de l’ouverture d’un PDF. Les chemins des ressources PDF locales utilisent maintenant les séparateurs attendus par PDF.js. Les données et les sauvegardes restent compatibles.
 
 La version **0.3.0** ajoute le choix explicite d’un trimestre **T1 à T4**, avec son année, indépendamment des dates couvertes par les relevés.
+
+La version **0.4.0** ajoute la sélection et le glisser-déposer de plusieurs PDF, avec lecture successive, contrôle par document et bilan du lot. Elle intègre le logo **JG Avocat** original et une présentation noir et blanc issue du modèle de conclusions fourni par l’utilisateur.
+
+## Déposer plusieurs relevés en une fois
+
+1. Cliquer sur **Importer des relevés PDF**, puis choisir le compte bancaire.
+2. Sélectionner plusieurs PDF avec **Ctrl** ou **Maj**, ou les glisser-déposer dans la zone prévue. Limites : **20 fichiers et 50 Mo par lot**, avec **10 Mo et 30 pages par PDF**.
+3. Cliquer sur **Lire le PDF** pour commencer. Comparer le premier document à son aperçu, corriger si nécessaire et confirmer son import.
+4. Le document suivant est lu automatiquement. Chaque fichier demande sa propre comparaison et confirmation ; les doublons sont réévalués en tenant compte des imports précédents. Le compte reste modifiable entre deux fichiers.
+5. Pour un PDF bloqué, protégé ou déjà importé, lire le message puis **Passer ce fichier** afin de continuer. Les erreurs et fichiers passés restent visibles dans la liste. Un fichier en erreur peut être réessayé à la fin du lot.
+6. Consulter le bilan puis cliquer sur **Terminer**. Chaque original est conservé séparément avec sa provenance. Les qualifications fiscales restent « à vérifier ».
+
+Chaque fichier est enregistré dans une transaction distincte après votre confirmation. Une erreur sur un document n’efface pas les imports précédents. Fermer la fenêtre annule la lecture en cours et abandonne la liste restante ; les fichiers déjà importés restent conservés. La fermeture est temporairement désactivée pendant la confirmation de l’enregistrement. Les fichiers en attente ne font pas partie des sauvegardes ; il faut les sélectionner à nouveau pour reprendre après fermeture.
+
+Le logo est repris à l’identique depuis l’en-tête du modèle Word. L’interface utilise Century Gothic et Tahoma lorsqu’elles sont installées, avec des polices de secours locales. Voir **docs/IDENTITE_VISUELLE.md**. Aucun contenu juridique du document Word n’est intégré au logiciel.
 
 ## Préparer sa TVA trimestrielle
 
@@ -14,14 +29,14 @@ Dans le tableau principal, choisir **Période TVA → Trimestre**, puis le trime
 
 Les autres mouvements sont conservés. Choisir un autre trimestre ou **Toutes les dates** permet de les retrouver. Modifier directement les dates passe le sélecteur en **Dates personnalisées**. Les soldes du PDF sont toujours rapprochés sur le relevé entier avant toute sélection. Pour des relevés qui se chevauchent, les contrôles d’import identique et de doublons restent applicables.
 
-Un exemple entièrement fictif, **examples/releve-fictif-trimestres.pdf**, couvre le 15 mars au 15 juillet 2026 : quatre mouvements sont importés ; deux appartiennent à T2 aux dates retenues par défaut. L’identité visuelle du cabinet fera l’objet d’une intégration distincte à partir des éléments fournis.
+Un exemple entièrement fictif, **examples/releve-fictif-trimestres.pdf**, couvre le 15 mars au 15 juillet 2026 : quatre mouvements sont importés ; deux appartiennent à T2 aux dates retenues par défaut.
 
 ## Utiliser sous Windows
 
 1. Installer **Node.js 24 LTS** depuis https://nodejs.org/ (conserver les choix proposés).
 2. Extraire complètement l’archive du projet dans un dossier local, par exemple **C:\TVA-Cabinet**. Ne pas lancer depuis l’intérieur du ZIP.
 3. Double-cliquer sur **DEMARRER.cmd**. Au premier lancement ou après une mise à jour, les dépendances et le modèle OCR sont installés ; Internet est alors nécessaire. Une fenêtre de console reste ouverte et le navigateur s’ouvre sur **http://127.0.0.1:3210**.
-4. Cliquer sur **Importer un relevé PDF**, ou sur **Essayer la démonstration** pour découvrir les qualifications avec des données fictives séparées de l’espace réel.
+4. Cliquer sur **Importer des relevés PDF**, ou sur **Essayer la démonstration** pour découvrir les qualifications avec des données fictives séparées de l’espace réel.
 
 Pour fermer, revenir à la fenêtre de console et appuyer sur **Ctrl+C**. Fermer le navigateur seul n’arrête pas le serveur. Pour reprendre, double-cliquer à nouveau sur DEMARRER.cmd. Le dossier **data** contient vos bases persistantes : ne pas le supprimer. Sauvegarder depuis le bouton **Sauvegarder / restaurer** avant de changer de dossier ou de version. Après installation, l’application fonctionne sans Internet.
 
@@ -29,7 +44,7 @@ Ce lanceur a été vérifié sur ses étapes Node.js sous Linux ; le double-clic
 
 ## Importer un relevé Société Générale en PDF
 
-1. Cliquer sur **Importer un relevé PDF**, nommer le compte, sélectionner son PDF puis **Lire le PDF**. Le traitement reste sur l’ordinateur. Les scans prennent plus de temps ; la progression est affichée.
+1. Cliquer sur **Importer des relevés PDF**, nommer le compte, sélectionner son PDF puis **Lire le PDF**. Le traitement reste sur l’ordinateur. Les scans prennent plus de temps ; la progression est affichée.
 2. Comparer les mouvements proposés avec les pages originales affichées à côté. Vérifier la date d’opération, le libellé, le signe et le montant. Les zones colorées montrent les colonnes utilisées ; elles peuvent être ajustées si le format du relevé diffère. La date de valeur reste distincte de la date d’opération.
 3. Vérifier la période et l’année. Une date courte sans année exploitable exige une saisie explicite. Corriger les cellules si nécessaire, puis actualiser l’aperçu. Consulter aussi les lignes non interprétées : elles restent visibles et peuvent être ajoutées manuellement ou exclues explicitement.
 4. Vérifier les soldes de début et de fin lorsqu’ils figurent sur le relevé : leur différence doit correspondre à la somme des mouvements reconnus avant sélection. Les doublons sont décochés par défaut ; leur conservation exige votre confirmation. Un PDF déjà importé sur le même compte est refusé.

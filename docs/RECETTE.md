@@ -1,8 +1,8 @@
-# Recette de la version 0.3.0
+# Recette de la version 0.4.0
 
 Données exclusivement fictives. Vérifications réalisées sous Linux avec Node.js 24.19.0, npm 11.9.0 et Chromium système, les 20 et 21 octobre 2026 (heure de Paris).
 
-Résultat final : **41 tests métier/persistance/API/lanceur réussis et 6 scénarios navigateur réussis**, sans test ignoré. Types et build réussis.
+Résultat final : **41 tests métier/persistance/API/lanceur réussis et 8 scénarios navigateur réussis**, sans test ignoré. Types et build réussis.
 
 ## Vérifications automatiques
 
@@ -28,7 +28,11 @@ Résultat final : **41 tests métier/persistance/API/lanceur réussis et 6 scén
 - PDF persistants : original, pages/lignes, méthode texte/OCR et corrections retrouvés après réouverture et restauration ; incohérence de provenance refusée sans altérer l’état. Migration d’une base CSV et restauration d’une ancienne sauvegarde de format 1 vérifiées.
 - Navigateur PDF : lecture sur deux pages avec original affiché, correction et actualisation, confirmation obligatoire, huit mouvements importés après détection du doublon, original téléchargé, rechargement et sauvegarde/restauration. Aucun appel réseau externe ni erreur JavaScript sur le parcours texte.
 - Navigateur scan : OCR réel, trois mouvements, avertissement de contrôle et confirmation, refus de réimporter le même document.
-- Mise à jour : installation complète par `scripts/prepare.mjs`, reconstruction après modification des sources et second lancement sans réinstallation/reconstruction inutiles. Le nouveau lanceur attend le signal réel d’écoute du serveur avant d’ouvrir le navigateur ; interface et API de version 0.3.0 contrôlées sur un port et un dossier temporaires. Un test de conflit de port vérifie le refus sans ouvrir une ancienne instance, puis l’arrêt propre du serveur lancé.
+- Lot de cinq fichiers : sélection multiple, correction du premier PDF, confirmation indépendante, passage automatique au suivant, rejet d’un PDF protégé, OCR local, doublons entre fichiers, refus d’un document déjà importé et bilan de trois sources / treize opérations conservées. Erreur HTTP fictive sur le deuxième import, maintien des huit opérations précédentes puis réessai réussi. Fermeture désactivée pendant une réponse d’enregistrement volontairement retardée.
+- Glisser-déposer : refus d’une sélection de 21 fichiers sans ajout partiel, dépôt réel de deux fichiers dont un format invalide, signalement du rejet, import valide et conservation après fermeture du bilan.
+- Identité : logo original extrait du modèle Word et identique octet par octet ; chargement local de l’image dans Chromium, rendu bureau et petite largeur inspectés, aucune requête externe sur le parcours du lot. Polices de secours utilisées si Century Gothic/Tahoma sont absentes du poste Linux.
+- Isolation visuelle : le tableau de l’espace précédent reste masqué pendant le changement réel/démonstration ; le scénario vérifie l’affichage effectif du compte de démonstration avant toute ligne.
+- Mise à jour : installation complète par `scripts/prepare.mjs`, reconstruction après modification des sources et second lancement sans réinstallation/reconstruction inutiles. Les assets publics, dont le logo, participent désormais au contrôle de reconstruction. Le nouveau lanceur attend le signal réel d’écoute du serveur avant d’ouvrir le navigateur ; interface et API de version 0.4.0 contrôlées sur un port et un dossier temporaires. Un test de conflit de port vérifie le refus sans ouvrir une ancienne instance, puis l’arrêt propre du serveur lancé.
 
 ## Formats PDF réellement vérifiés
 

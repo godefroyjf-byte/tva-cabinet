@@ -28,6 +28,7 @@ function scan(directory) {
   }
 }
 scan('src');scan('shared');scan('server');
+if(existsSync(join(root,'public')))scan('public');
 files.push('index.html','vite.config.ts','tsconfig.json','package.json','package-lock.json');
 const buildHash=createHash('sha256');
 for(const file of files)buildHash.update(file).update(readFileSync(join(root,file)));

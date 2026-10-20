@@ -3,16 +3,18 @@ import { createRoot } from 'react-dom/client';
 import { amounts, defaultSettings, filterOperations, inputMoney, money, natureLabels, newPart, parseMoney, statusLabels, sumCents, summary, treatmentLabels, type Filters, type Operation, type Part, type Settings, type Settlement } from '../shared/model.ts';
 import type { Preview, CsvRequest } from '../server/csv.ts';
 import {Modal,MoneyInput,request,errorText,type Mode} from './ui.tsx';
-import {PdfImportDialog} from './PdfImport.tsx';
+import {PdfImportDialog} from './PdfBatchImport.tsx';
 import {quarterRange} from '../shared/periods.ts';
 import './style.css';
+import './brand.css';
 
 type State={version?:string;operations:Operation[];settings:Settings;locks:string[];settlements:Record<string,Settlement>;mode:Mode;history:{id:string;at:string;label:string;kind:string;undone:boolean;count:number}[]};
 type FullPreview=Preview & {alreadyImported:boolean};
 const emptySettlement:Settlement={adjustmentsCents:0,priorCreditCents:0,confirmed:false};
 function App() {
   const [mode,setMode]=useState<Mode>(localStorage.getItem('tva-mode')==='demo'?'demo':'real');
-  const [data,setData]=useState<State|null>(null),[error,setError]=useState(''),[message,setMessage]=useState('');
+  const [loadedData,setData]=useState<State|null>(null),[error,setError]=useState(''),[message,setMessage]=useState('');
+  const data=loadedData?.mode===mode?loadedData:null;
   const [busy,setBusy]=useState(false),[modal,setModal]=useState<'import'|'pdf'|'backup'|'settings'|null>(null),[editing,setEditing]=useState<Operation|null>(null);
   const [filters,setFilters]=useState<Filters>({}),[selected,setSelected]=useState<number[]>([]);
   const [period,setPeriod]=useState('all'),[periodYear,setPeriodYear]=useState(String(new Date().getFullYear())),[periodQuarter,setPeriodQuarter]=useState(Math.floor(new Date().getMonth()/3)+1);
@@ -66,7 +68,7 @@ function App() {
   }
   return <div className="app">
     <header className="topbar">
-      <a className="brand" href="/"><span className="mark">T</span><span>TVA Cabinet<small>Votre préparation, ligne par ligne.</small></span></a>
+      <a className="brand" href="/"><img className="cabinet-logo" src="/brand/logo-jg-avocat.png" alt="Logo JG Avocat"/><span className="brand-name">Jean-François GODEFROY<small>Avocat · TVA Cabinet</small></span></a>
       <div className="top-actions"><span className="local"><i/>Données locales</span>
         <button onClick={()=>setModal('settings')}>Paramètres</button>
         <button onClick={()=>setModal('backup')}>Sauvegarder / restaurer</button>
@@ -76,7 +78,7 @@ function App() {
       {mode==='demo'?<div className="banner demo"><span><strong>Démonstration</strong> · Données fictives, séparées de votre espace réel.</span><button onClick={()=>setMode('real')} disabled={busy}>Revenir à mon espace</button></div>:
       <div className="banner"><span>Aucun relevé n’est transmis à un service externe.</span><button onClick={demo} disabled={busy}>Essayer la démonstration</button></div>}
       <div className="page-title"><div><p className="eyebrow">ESPACE DE TRAVAIL {mode==='demo'?'· DÉMONSTRATION':''}</p><h1>Préparer ma TVA</h1><p>Importez vos mouvements, vérifiez leur traitement et gardez la maîtrise des totaux.</p></div>
-      <div className="import-actions"><button className="primary" onClick={()=>setModal('pdf')} disabled={!data||busy}>＋ Importer un relevé PDF</button><button onClick={()=>setModal('import')} disabled={!data||busy}>Importer un relevé CSV</button></div></div>
+      <div className="import-actions"><button className="primary" onClick={()=>setModal('pdf')} disabled={!data||busy}>＋ Importer des relevés PDF</button><button onClick={()=>setModal('import')} disabled={!data||busy}>Importer un relevé CSV</button></div></div>
       {error&&<div role="alert" className="notice error">{error}<button onClick={()=>setError('')} aria-label="Masquer l’erreur">×</button></div>}
       {message&&<div role="status" className="notice success">{message}</div>}
       {!data?<div className="panel empty"><h2>Connexion au serveur local…</h2>{error&&<button onClick={()=>perform(reload)}>Réessayer</button>}</div>:<>
@@ -130,7 +132,7 @@ function App() {
       </>}
     </main>
     {modal==='import'&&data&&<ImportDialog mode={mode} accounts={[...new Set(data.operations.map(o=>o.account))]} onClose={()=>setModal(null)} onDone={async count=>{await reload();setModal(null);setMessage(count+' opérations importées, en attente de qualification.');}}/>}
-    {modal==='pdf'&&data&&<PdfImportDialog mode={mode} accounts={[...new Set(data.operations.map(o=>o.account))]} onClose={()=>setModal(null)} onDone={async count=>{await reload();setModal(null);setMessage(count+' mouvements PDF importés, en attente de qualification.');}}/>}
+    {modal==='pdf'&&data&&<PdfImportDialog mode={mode} accounts={[...new Set(data.operations.map(o=>o.account))]} onClose={()=>setModal(null)} onImported={reload} onDone={async count=>{await reload();setModal(null);setMessage(count+' mouvements PDF importés, en attente de qualification.');}}/>}
     {modal==='settings'&&data&&<SettingsDialog data={data} mode={mode} onClose={()=>setModal(null)} onDone={async()=>{await reload();setMessage('Paramètres enregistrés.');}}/>}
     {modal==='backup'&&<BackupDialog mode={mode} onClose={()=>setModal(null)} onDone={async()=>{await reload();setModal(null);setMessage('Sauvegarde restaurée. L’état précédent a été conservé sur disque.');}}/>}
     {editing&&data&&<Editor key={editing.id} operation={editing} mode={mode} rates={data.settings.rates} locked={editing.parts.some(p=>data.locks.includes(p.vatDate.slice(0,7)))} onClose={()=>setEditing(null)} onSaved={async next=>{await reload();const index=visible.findIndex(o=>o.id===editing.id);setEditing(next?visible[index+1]??null:null);setMessage('Qualification enregistrée.');}}/>}
@@ -212,7 +214,7 @@ function ImportDialog({mode,accounts,onClose,onDone}:{mode:Mode;accounts:string[
   }
   const dirty=!!preview&&signature(csv,edits)!==analysed;
   return <Modal title="Importer un relevé CSV" wide onClose={onClose}>
-    <p className="hint">CSV UTF-8 ou Windows-1252, jusqu’à 5 Mo et 10 000 lignes. Pour un PDF, utilisez le bouton « Importer un relevé PDF » de l’écran principal. Excel n’est pas disponible. Votre fichier reste local.</p>
+    <p className="hint">CSV UTF-8 ou Windows-1252, jusqu’à 5 Mo et 10 000 lignes. Pour un PDF, utilisez le bouton « Importer des relevés PDF » de l’écran principal. Excel n’est pas disponible. Votre fichier reste local.</p>
     {error&&<p className="notice error" role="alert">{error}</p>}
     <form onSubmit={analyse} className="import-form"><div className="form-grid">
       <label>Compte bancaire<input required list="accounts" value={csv.account} maxLength={100} onChange={e=>{setCsv({...csv,account:e.target.value});setPreview(null);}}/><datalist id="accounts">{accounts.map(a=><option key={a} value={a}/>)}</datalist></label>

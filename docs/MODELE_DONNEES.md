@@ -12,6 +12,10 @@ Invariants côté serveur : montants entiers bornés ; somme des ventilations ex
 
 Les champs bancaires ne sont plus modifiables après import. Leurs corrections se font dans l’aperçu avant import, en conservant les cellules originales. Une entrée bancaire ne détermine jamais automatiquement sa nature ou son droit à déduction.
 
+Depuis la version 0.4, les lots sont une file de fichiers gardée dans le navigateur, avec un seul aperçu actif côté serveur. Les documents sont lus successivement et chaque import confirmé conserve sa propre transaction, source et provenance. Un échec n’annule pas les fichiers déjà importés ; il reste signalé dans le bilan. Le fichier suivant est analysé avec les opérations déjà enregistrées pour actualiser les doublons. La file non confirmée n’est pas sauvegardée et disparaît à la fermeture de la fenêtre. Les bases et sauvegardes restent au même format.
+
+Le logo du cabinet est un asset statique livré avec l’application, distinct des sources bancaires. Le document Word ayant servi de référence visuelle n’est pas conservé dans les bases ni dans le dépôt.
+
 Une révision protège les modifications contre les fenêtres devenues périmées. La restauration affecte une nouvelle révision aux opérations pour invalider les formulaires antérieurs. Les écritures de la restauration se font dans une seule transaction après validation de tout le contenu et sauvegarde de l’état précédent. Les sources originales, paramètres, historique et verrous font partie du fichier de sauvegarde.
 
 La sauvegarde émet le format 2 et accepte les formats 1 et 2. L’empreinte est vérifiée sur le contenu reçu avant ajout de valeurs par défaut. Les références PDF doivent correspondre aux pages/lignes de la source conservée ; une incohérence annule la restauration. L’original est téléchargeable par la route locale protégée du relevé, avec le type et l’extension correspondants. L’export CSV inclut page, méthode et références PDF.

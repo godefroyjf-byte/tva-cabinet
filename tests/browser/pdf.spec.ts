@@ -5,7 +5,7 @@ test('PDF texte : choix du fichier, deux pages, correction, contrôle, import, o
   page.on('pageerror',e=>errors.push(e.message));
   page.on('request',req=>{if(!req.url().startsWith('http://127.0.0.1:3217')&&!req.url().startsWith('data:'))external.push(req.url());});
   await page.goto('/');
-  await page.getByRole('button',{name:'Importer un relevé PDF',exact:false}).click();
+  await page.getByRole('button',{name:'Importer des relevés PDF',exact:false}).click();
   await page.getByLabel('Compte bancaire PDF',{exact:true}).fill('PDF navigateur');
   await page.getByLabel('Relevé PDF',{exact:true}).setInputFiles('examples/releve-fictif-sg.pdf');
   await page.getByRole('button',{name:'Lire le PDF',exact:true}).click();
@@ -49,7 +49,7 @@ test('PDF texte : choix du fichier, deux pages, correction, contrôle, import, o
 });
 test('PDF scanné : OCR local exécuté, avertissement, trois mouvements et refus d’un PDF déjà importé',async({page})=>{
   await page.goto('/');
-  await page.getByRole('button',{name:'Importer un relevé PDF',exact:false}).click();
+  await page.getByRole('button',{name:'Importer des relevés PDF',exact:false}).click();
   await page.getByLabel('Compte bancaire PDF',{exact:true}).fill('Scan navigateur');
   await page.getByLabel('Relevé PDF',{exact:true}).setInputFiles('examples/releve-fictif-scan.pdf');
   await page.getByRole('button',{name:'Lire le PDF',exact:true}).click();
@@ -59,7 +59,7 @@ test('PDF scanné : OCR local exécuté, avertissement, trois mouvements et refu
   await page.getByLabel('J’ai comparé les lignes sélectionnées',{exact:false}).check();
   await page.getByRole('button',{name:'Importer 3 mouvements PDF',exact:true}).click();
   await expect(page.getByText('3 mouvements PDF importés, en attente de qualification.',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Importer un relevé PDF',exact:false}).click();
+  await page.getByRole('button',{name:'Importer des relevés PDF',exact:false}).click();
   await page.getByLabel('Compte bancaire PDF',{exact:true}).fill('Scan navigateur');
   await page.getByLabel('Relevé PDF',{exact:true}).setInputFiles('examples/releve-fictif-scan.pdf');
   await page.getByRole('button',{name:'Lire le PDF',exact:true}).click();

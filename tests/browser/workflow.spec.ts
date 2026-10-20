@@ -82,6 +82,7 @@ test('Démonstration isolée et écran utilisable sur une petite largeur',async(
   await page.setViewportSize({width:390,height:844});await page.goto('/');
   await page.getByRole('button',{name:'Essayer la démonstration',exact:true}).click();
   await expect(page.getByRole('button',{name:'Revenir à mon espace',exact:true})).toBeVisible();
+  await expect(page.getByRole('combobox',{name:'Compte',exact:true})).toContainText('Compte de démonstration');
   await expect(page.getByRole('button',{name:'Honoraires dossier ALPHA',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Revenir à mon espace',exact:true}).click();
   await expect(page.getByRole('button',{name:'Revenir à mon espace',exact:true})).toHaveCount(0);

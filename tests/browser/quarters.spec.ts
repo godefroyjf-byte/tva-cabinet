@@ -8,7 +8,7 @@ test('TVA trimestrielle : PDF débordant de la période, T1 à T4, année, expor
   await page.getByLabel('Trimestre TVA',{exact:true}).selectOption('2');
   await expect(page.getByLabel('Date TVA de début',{exact:true})).toHaveValue('2026-04-01');
   await expect(page.getByLabel('Date TVA de fin',{exact:true})).toHaveValue('2026-06-30');
-  await page.getByRole('button',{name:'Importer un relevé PDF',exact:false}).click();
+  await page.getByRole('button',{name:'Importer des relevés PDF',exact:false}).click();
   await page.getByLabel('Compte bancaire PDF',{exact:true}).fill('Trimestre navigateur');
   await page.getByLabel('Relevé PDF',{exact:true}).setInputFiles('examples/releve-fictif-trimestres.pdf');
   await page.getByRole('button',{name:'Lire le PDF',exact:true}).click();
