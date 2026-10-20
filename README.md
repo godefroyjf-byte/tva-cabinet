@@ -1,8 +1,20 @@
-# TVA Cabinet — version locale 0.2.1
+# TVA Cabinet — version locale 0.3.0
 
 Importer directement ses relevés **PDF**, qualifier les mouvements par clic, séparer la TVA confirmée des estimations, exporter la vue et retrouver ses données au redémarrage. Les PDF contenant du texte et les scans lisibles sont traités localement, avec reconnaissance de texte en français (OCR) pour les scans. Aucun CSV n’est nécessaire. Application française mono-utilisateur : React/TypeScript, Node.js 24 et SQLite. Aucun compte, abonnement ni clé API.
 
 La version **0.2.1** corrige l’erreur Windows « Invalid factory url … must include trailing slash » lors de l’ouverture d’un PDF. Les chemins des ressources PDF locales utilisent maintenant les séparateurs attendus par PDF.js. Les données et les sauvegardes restent compatibles.
+
+La version **0.3.0** ajoute le choix explicite d’un trimestre **T1 à T4**, avec son année, indépendamment des dates couvertes par les relevés.
+
+## Préparer sa TVA trimestrielle
+
+Importer les relevés **en entier**, même s’ils commencent avant le trimestre ou finissent après. Les dates de l’aperçu PDF décrivent le document bancaire et servent à contrôler ses lignes et ses soldes ; elles ne définissent pas la période de déclaration.
+
+Dans le tableau principal, choisir **Période TVA → Trimestre**, puis le trimestre et l’année. Par exemple, **T2 2026** applique les dates **du 1er avril au 30 juin inclus**. Seules les ventilations dont la **date TVA retenue** tombe dans cette période contribuent à la synthèse et à l’export. Le régime et chaque date TVA restent des choix explicites de l’utilisateur ; l’application ne déduit pas automatiquement l’exigibilité du relevé.
+
+Les autres mouvements sont conservés. Choisir un autre trimestre ou **Toutes les dates** permet de les retrouver. Modifier directement les dates passe le sélecteur en **Dates personnalisées**. Les soldes du PDF sont toujours rapprochés sur le relevé entier avant toute sélection. Pour des relevés qui se chevauchent, les contrôles d’import identique et de doublons restent applicables.
+
+Un exemple entièrement fictif, **examples/releve-fictif-trimestres.pdf**, couvre le 15 mars au 15 juillet 2026 : quatre mouvements sont importés ; deux appartiennent à T2 aux dates retenues par défaut. L’identité visuelle du cabinet fera l’objet d’une intégration distincte à partir des éléments fournis.
 
 ## Utiliser sous Windows
 

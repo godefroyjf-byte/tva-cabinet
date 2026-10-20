@@ -1,4 +1,4 @@
-TVA CABINET 0.2.1 — PREMIER LANCEMENT SOUS WINDOWS
+TVA CABINET 0.3.0 — PREMIER LANCEMENT SOUS WINDOWS
 
 1. Installer Node.js 24 LTS : https://nodejs.org/
 2. Extraire complètement le ZIP dans un dossier de votre ordinateur.
@@ -6,6 +6,12 @@ TVA CABINET 0.2.1 — PREMIER LANCEMENT SOUS WINDOWS
 4. Attendre l'ouverture du navigateur, puis cliquer sur « Importer un relevé PDF ».
 5. Choisir le PDF, cliquer sur « Lire le PDF », comparer l'aperçu à l'original,
    corriger si nécessaire, confirmer la vérification puis importer.
+6. Pour votre déclaration trimestrielle : choisir « Trimestre »,
+   puis le trimestre et l'année dans le tableau principal.
+
+Importez le relevé entier, même si ses dates dépassent le trimestre.
+Seules les dates TVA retenues dans la période choisie contribuent aux totaux
+et à l'export. Les autres mouvements restent conservés et accessibles.
 
 Garder la fenêtre de lancement ouverte pendant l'utilisation.
 Pour arrêter : Ctrl+C dans cette fenêtre. Pour reprendre : DEMARRER.cmd.

@@ -1,6 +1,6 @@
 # Plan d'implémentation
 
-État au 20 octobre 2026 : version 0.2.1 avec imports PDF texte et scans par OCR français local, en plus du parcours CSV. Aucun déploiement public.
+État au 21 octobre 2026 : version 0.3.0 avec imports PDF texte et scans par OCR français local, parcours CSV et choix explicite des trimestres T1 à T4 avec l’année. Aucun déploiement public.
 
 ## Lot 1 — Fondation
 - [x] Initialiser React/TypeScript, Node.js/TypeScript, SQLite et lockfile npm.
@@ -14,6 +14,8 @@
 - [x] Tableau, édition et actions par clic, multi-sélection et annulation tracée.
 - [x] Ventilation conservant le total et validation explicite.
 - [x] Synthèse avec montants confirmés et estimations séparés, régularisations et crédit confirmés par période exacte.
+- [x] Sélecteur T1 à T4 et année, dates personnalisées synchronisées, distinction claire entre période bancaire et trimestre TVA.
+- [x] Relevé PDF couvrant plusieurs trimestres : import entier, bornes inclusives, totaux/export du trimestre et conservation des autres mouvements vérifiés.
 - [x] Export CSV et vérification de persistance après redémarrage dans un nouveau processus.
 
 Critère : les lignes du relevé fictif peuvent être importées et qualifiées,
@@ -46,3 +48,8 @@ Si un lot est partiel, le dire au lieu de présenter tout le périmètre comme l
 Le prochain contrôle porte sur le lancement Windows et le format du relevé réel de l’utilisateur.
 Excel, les factures justificatives jointes, les règles récurrentes et les paiements complexes restent indisponibles.
 Les détails des vérifications réellement exécutées sont dans docs/RECETTE.md.
+
+## Identité visuelle du cabinet
+- [x] Référence confirmée par l’utilisateur : https://godefroy-avocat.fr/ ; reprendre son logo, ses couleurs et ses polices.
+- [ ] Récupérer les fichiers ou une copie du site : accès réseau au domaine bloqué depuis cet environnement (HTTP 403 lors du tunnel HTTPS), y compris après tentative autorisée hors sandbox.
+- [ ] Intégrer localement les éléments réels de cette identité, puis vérifier leur rendu. Aucun logo du cabinet ni aucune charte spécifique n’est encore intégré dans la version 0.3.0.

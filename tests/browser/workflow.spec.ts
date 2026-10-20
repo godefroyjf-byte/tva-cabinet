@@ -45,6 +45,7 @@ test('Parcours réel dans le navigateur : CSV, qualification, dépenses, ventila
   await page.getByRole('button',{name:'Enregistrer à vérifier',exact:true}).click();
   await expect(page.getByText('2 ventilations',{exact:false})).toBeVisible();
   await page.reload();
+  await page.getByRole('combobox',{name:'Compte',exact:true}).selectOption('Compte principal');
   await expect(page.locator('.metric').nth(2).locator('strong')).toHaveText('180,00 €');
   await page.getByRole('button',{name:'Sauvegarder / restaurer',exact:true}).click();
   const downloadPromise=page.waitForEvent('download');

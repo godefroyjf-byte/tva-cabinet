@@ -1,8 +1,8 @@
-# Recette de la version 0.2.1
+# Recette de la version 0.3.0
 
-Données exclusivement fictives. Vérifications réalisées sous Linux avec Node.js 24.19.0, npm 11.9.0 et Chromium système, le 20 octobre 2026.
+Données exclusivement fictives. Vérifications réalisées sous Linux avec Node.js 24.19.0, npm 11.9.0 et Chromium système, les 20 et 21 octobre 2026 (heure de Paris).
 
-Résultat final : **39 tests métier/persistance/API/lanceur réussis et 5 scénarios navigateur réussis**, sans test ignoré. Types et build réussis.
+Résultat final : **41 tests métier/persistance/API/lanceur réussis et 6 scénarios navigateur réussis**, sans test ignoré. Types et build réussis.
 
 ## Vérifications automatiques
 
@@ -23,14 +23,18 @@ Résultat final : **39 tests métier/persistance/API/lanceur réussis et 5 scén
 - OCR français : véritable reconnaissance d’un PDF raster fictif d’une page, trois mouvements et soldes recoupés. Un processus de test interdit tout accès HTTP/HTTPS et fetch, y compris dans les workers ; la lecture réussit avec le modèle installé localement.
 - PDF protégés et endommagés : erreurs explicites sans import. API : lecture asynchrone, image de page locale, isolation réel/démonstration, confirmation, original identique octet par octet et annulation de l’aperçu.
 - Correctif Windows 0.2.1 : reproduction du refus par PDF.js de chemins terminés par un antislash pour les trois options de ressources. Les chemins corrigés sont acceptés par la bibliothèque réelle ; espaces, accents, caractères « # » et préfixe réseau UNC sont couverts. Les fichiers de polices, CMaps et WASM installés restent lisibles directement depuis le disque. Ce test sous Linux ne remplace pas l’exécution complète sur Windows.
+- Trimestres : bornes civiles T1 à T4, année passée et refus des paramètres invalides. Un véritable PDF fictif du 15 mars au 15 juillet est importé avec ses quatre mouvements et ses soldes complets ; les dates du 1er avril et du 30 juin sont incluses dans T2, celles du 31 mars et du 1er juillet restent dans T1/T3. Les totaux confirmés se recoupent et le PDF original reste identique dans la sauvegarde.
+- Navigateur trimestriel : choix du trimestre avant l’import, aperçu du relevé entier, deux mouvements affichés pour T2, qualification et TVA collectée de 100 €, export limité à T2, accès aux mouvements conservés via T1/T3/toutes les dates, changement d’année et passage cohérent en dates personnalisées.
 - PDF persistants : original, pages/lignes, méthode texte/OCR et corrections retrouvés après réouverture et restauration ; incohérence de provenance refusée sans altérer l’état. Migration d’une base CSV et restauration d’une ancienne sauvegarde de format 1 vérifiées.
 - Navigateur PDF : lecture sur deux pages avec original affiché, correction et actualisation, confirmation obligatoire, huit mouvements importés après détection du doublon, original téléchargé, rechargement et sauvegarde/restauration. Aucun appel réseau externe ni erreur JavaScript sur le parcours texte.
 - Navigateur scan : OCR réel, trois mouvements, avertissement de contrôle et confirmation, refus de réimporter le même document.
-- Mise à jour : installation complète par `scripts/prepare.mjs`, reconstruction après modification des sources et second lancement sans réinstallation/reconstruction inutiles. Le nouveau lanceur attend le signal réel d’écoute du serveur avant d’ouvrir le navigateur ; interface et API de version 0.2.1 contrôlées sur un port et un dossier temporaires. Un test de conflit de port vérifie le refus sans ouvrir une ancienne instance, puis l’arrêt propre du serveur lancé.
+- Mise à jour : installation complète par `scripts/prepare.mjs`, reconstruction après modification des sources et second lancement sans réinstallation/reconstruction inutiles. Le nouveau lanceur attend le signal réel d’écoute du serveur avant d’ouvrir le navigateur ; interface et API de version 0.3.0 contrôlées sur un port et un dossier temporaires. Un test de conflit de port vérifie le refus sans ouvrir une ancienne instance, puis l’arrêt propre du serveur lancé.
 
 ## Formats PDF réellement vérifiés
 
 Uniquement des relevés entièrement fictifs : `examples/releve-fictif-sg.pdf` et `examples/releve-fictif-scan.pdf`, générés par `scripts/generate-pdf-examples.mjs`. Colonnes date d’opération, valeur, nature/libellé, débit et crédit ; dates courtes avec année fournie dans la période du relevé. Le premier a deux pages de texte, le second une page raster lisible. Un document fictif chiffré complète les contrôles d’erreur.
+
+`examples/releve-fictif-trimestres.pdf`, généré par `scripts/generate-quarter-example.mjs`, ajoute un relevé sur trois trimestres avec quatre dates complètes, débits/crédits séparés et soldes. Il sert à vérifier l’indépendance entre import et période de déclaration.
 
 Aucun relevé bancaire réel de l’utilisateur n’a été fourni ou vérifié. Ces résultats ne garantissent pas la lecture de toutes les présentations Société Générale ou de tous les scans. Les colonnes réglables, les corrections, les lignes ignorées visibles et la confirmation servent à contrôler chaque import. Les mises en page mixtes, photographies dégradées et colonnes variables restent à vérifier sur les documents concernés.
 

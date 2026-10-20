@@ -167,6 +167,7 @@ export function PdfImportDialog({mode,accounts,onClose,onDone}:{mode:Mode;accoun
             <label>Début du relevé<input aria-label="Début du relevé PDF" type="date" value={options.periodStart??''} onChange={event=>change({periodStart:event.target.value})}/></label>
             <label>Fin du relevé<input aria-label="Fin du relevé PDF" type="date" value={options.periodEnd??''} onChange={event=>change({periodEnd:event.target.value})}/></label>
           </div>
+          <p className="hint">Ces dates décrivent le relevé bancaire. Elles peuvent dépasser votre trimestre de TVA : importez le relevé complet, puis choisissez le trimestre dans le tableau principal.</p>
           <div className="form-grid pdf-balances"><label>Solde de début<MoneyInput label="Solde de début PDF" value={options.openingBalanceCents??null} nullable onChange={n=>change({openingBalanceCents:n})}/></label><label>Solde de fin<MoneyInput label="Solde de fin PDF" value={options.closingBalanceCents??null} nullable onChange={n=>change({closingBalanceCents:n})}/></label></div>
           {preview.balanceDifference===null?<p className="hint">{preview.balanceDetected?'Soldes repérés : complétez les deux valeurs pour contrôler le relevé.':'Renseignez les soldes si votre relevé en comporte.'}</p>:<p className={preview.balanceDifference===0?'notice success':'notice error'}>Écart entre les soldes et les mouvements : <strong>{money(preview.balanceDifference)}</strong></p>}
           <button disabled={busy} onClick={()=>rebuild(options)}>Actualiser l’aperçu PDF et les corrections</button>

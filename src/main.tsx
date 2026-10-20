@@ -4,6 +4,7 @@ import { amounts, defaultSettings, filterOperations, inputMoney, money, natureLa
 import type { Preview, CsvRequest } from '../server/csv.ts';
 import {Modal,MoneyInput,request,errorText,type Mode} from './ui.tsx';
 import {PdfImportDialog} from './PdfImport.tsx';
+import {quarterRange} from '../shared/periods.ts';
 import './style.css';
 
 type State={version?:string;operations:Operation[];settings:Settings;locks:string[];settlements:Record<string,Settlement>;mode:Mode;history:{id:string;at:string;label:string;kind:string;undone:boolean;count:number}[]};
@@ -14,10 +15,11 @@ function App() {
   const [data,setData]=useState<State|null>(null),[error,setError]=useState(''),[message,setMessage]=useState('');
   const [busy,setBusy]=useState(false),[modal,setModal]=useState<'import'|'pdf'|'backup'|'settings'|null>(null),[editing,setEditing]=useState<Operation|null>(null);
   const [filters,setFilters]=useState<Filters>({}),[selected,setSelected]=useState<number[]>([]);
+  const [period,setPeriod]=useState('all'),[periodYear,setPeriodYear]=useState(String(new Date().getFullYear())),[periodQuarter,setPeriodQuarter]=useState(Math.floor(new Date().getMonth()/3)+1);
   const [sort,setSort]=useState<'date'|'label'|'cents'>('date'),[direction,setDirection]=useState(1),[page,setPage]=useState(0);
   async function reload() {setData(await request<State>('/state',mode));}
   useEffect(()=>{
-    let active=true;setData(null);setSelected([]);setFilters({});setPage(0);setError('');setMessage('');localStorage.setItem('tva-mode',mode);
+    let active=true;setData(null);setSelected([]);setFilters({});setPeriod('all');setPage(0);setError('');setMessage('');localStorage.setItem('tva-mode',mode);
     request<State>('/state',mode).then(s=>{if(active)setData(s);}).catch(e=>{if(active)setError(errorText(e));});
     return ()=>{active=false;};
   },[mode]);
@@ -46,12 +48,19 @@ function App() {
   const totals=data?summary(data.operations,filters,partial?emptySettlement:settlement):null;
   const query=new URLSearchParams(Object.entries(filters).filter(([,v])=>v)).toString();
   const download=(path:string)=>'/api/'+path+(path.includes('?')?'&':'?')+'mode='+mode;
-  function filter(name:keyof Filters,value:string) {setFilters({...filters,[name]:value||undefined});}
+  function filter(name:keyof Filters,value:string) {if(name==='from'||name==='to')setPeriod('custom');setFilters({...filters,[name]:value||undefined});}
+  function chooseQuarter(year:string,quarter:number) {
+    setPeriodYear(year);setPeriodQuarter(quarter);
+    if(/^\d{4}$/.test(year)&&Number(year)>=1900&&Number(year)<=2200)setFilters({...filters,...quarterRange(Number(year),quarter)});
+  }
   function preset(value:string) {
+    setPeriod(value);
     if(value==='all'){setFilters({...filters,from:undefined,to:undefined});return;}
+    if(value==='custom')return;
+    if(value==='quarter'){chooseQuarter(periodYear,periodQuarter);return;}
     const now=new Date(),y=now.getFullYear(),m=now.getMonth();
-    const start=value==='year'?new Date(y,0,1):value==='quarter'?new Date(y,Math.floor(m/3)*3,1):new Date(y,m,1);
-    const end=value==='year'?new Date(y,11,31):value==='quarter'?new Date(y,Math.floor(m/3)*3+3,0):new Date(y,m+1,0);
+    const start=value==='year'?new Date(y,0,1):new Date(y,m,1);
+    const end=value==='year'?new Date(y,11,31):new Date(y,m+1,0);
     const iso=(d:Date)=>String(d.getFullYear())+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
     setFilters({...filters,from:iso(start),to:iso(end)});
   }
@@ -73,13 +82,15 @@ function App() {
       {!data?<div className="panel empty"><h2>Connexion au serveur local…</h2>{error&&<button onClick={()=>perform(reload)}>Réessayer</button>}</div>:<>
       {!data.settings.regimeConfirmed&&<div className="notice warning"><span><strong>Avant de confirmer vos opérations</strong> · Vérifiez votre régime fiscal et vos dates de TVA. Aucun régime n’est présumé.</span><button onClick={()=>setModal('settings')}>Vérifier mes paramètres</button></div>}
       <section className="panel filters" aria-label="Filtres des opérations">
-        <label>Période TVA<select aria-label="Raccourci de période" defaultValue="all" onChange={e=>preset(e.target.value)}><option value="all">Toutes les dates</option><option value="month">Mois en cours</option><option value="quarter">Trimestre en cours</option><option value="year">Année en cours</option></select></label>
+        <label>Période TVA<select aria-label="Raccourci de période" value={period} onChange={e=>preset(e.target.value)}><option value="all">Toutes les dates</option><option value="quarter">Trimestre</option><option value="month">Mois en cours</option><option value="year">Année en cours</option><option value="custom">Dates personnalisées</option></select></label>
+        {period==='quarter'&&<><label>Trimestre<select aria-label="Trimestre TVA" value={periodQuarter} onChange={e=>chooseQuarter(periodYear,Number(e.target.value))}><option value="1">T1 · janvier à mars</option><option value="2">T2 · avril à juin</option><option value="3">T3 · juillet à septembre</option><option value="4">T4 · octobre à décembre</option></select></label><label>Année<select aria-label="Année du trimestre TVA" value={periodYear} onChange={e=>chooseQuarter(e.target.value,periodQuarter)}>{Array.from({length:301},(_,index)=>1900+index).map(year=><option key={year} value={year}>{year}</option>)}</select></label></>}
         <label>Du<input type="date" aria-label="Date TVA de début" value={filters.from??''} onChange={e=>filter('from',e.target.value)}/></label>
         <label>Au<input type="date" aria-label="Date TVA de fin" min={filters.from} value={filters.to??''} onChange={e=>filter('to',e.target.value)}/></label>
         <label>Compte<select value={filters.account??''} onChange={e=>filter('account',e.target.value)}><option value="">Tous les comptes</option>{[...new Set(data.operations.map(o=>o.account))].map(a=><option key={a}>{a}</option>)}</select></label>
         <label>État<select value={filters.status??''} onChange={e=>filter('status',e.target.value)}><option value="">Tous les états</option>{Object.entries(statusLabels).map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></label>
         <label className="search">Rechercher<input placeholder="Un libellé…" value={filters.q??''} onChange={e=>filter('q',e.target.value)}/></label>
       </section>
+      <div className="period-explanation"><p><strong>{period==='quarter'&&filters.from&&filters.to?'TVA du T'+periodQuarter+' '+filters.from.slice(0,4)+' · du '+filters.from.split('-').reverse().join('/')+' au '+filters.to.split('-').reverse().join('/'):'Période TVA indépendante des relevés bancaires.'}</strong> Importez vos relevés en entier, même s’ils débordent du trimestre. La synthèse et l’export retiennent uniquement les dates TVA choisies dans cette période ; les autres mouvements restent conservés.</p>{(filters.from||filters.to)&&<span>{visible.length} mouvement(s) dans cette vue sur {data.operations.length} conservé(s) au total.</span>}</div>
       {filters.from&&filters.to&&filters.from>filters.to&&<p role="alert" className="error-text">La date de début doit précéder la date de fin.</p>}
       <section className="cards" aria-label="Totaux confirmés">
         <article className="metric"><span>TVA collectée confirmée</span><strong>{money(totals!.collected)}</strong><small>Sur les recettes qualifiées</small></article>
