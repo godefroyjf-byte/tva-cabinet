@@ -1,21 +1,33 @@
-# TVA Cabinet — première version locale
+# TVA Cabinet — version locale 0.2.0
 
-Importer un CSV, qualifier les mouvements par clic, séparer la TVA confirmée des estimations, exporter la vue et retrouver ses données au redémarrage. Application française mono-utilisateur : React/TypeScript, Node.js 24 et SQLite. Aucun compte, abonnement ni clé API.
+Importer directement ses relevés **PDF**, qualifier les mouvements par clic, séparer la TVA confirmée des estimations, exporter la vue et retrouver ses données au redémarrage. Les PDF contenant du texte et les scans lisibles sont traités localement, avec reconnaissance de texte en français (OCR) pour les scans. Aucun CSV n’est nécessaire. Application française mono-utilisateur : React/TypeScript, Node.js 24 et SQLite. Aucun compte, abonnement ni clé API.
 
 ## Utiliser sous Windows
 
 1. Installer **Node.js 24 LTS** depuis https://nodejs.org/ (conserver les choix proposés).
 2. Extraire complètement l’archive du projet dans un dossier local, par exemple **C:\TVA-Cabinet**. Ne pas lancer depuis l’intérieur du ZIP.
-3. Double-cliquer sur **DEMARRER.cmd**. Au premier lancement, les dépendances sont installées ; Internet est alors nécessaire. Une fenêtre de console reste ouverte et le navigateur s’ouvre sur **http://127.0.0.1:3210**.
-4. Cliquer sur **Essayer la démonstration** pour commencer avec des données fictives, séparées de l’espace réel.
+3. Double-cliquer sur **DEMARRER.cmd**. Au premier lancement ou après une mise à jour, les dépendances et le modèle OCR sont installés ; Internet est alors nécessaire. Une fenêtre de console reste ouverte et le navigateur s’ouvre sur **http://127.0.0.1:3210**.
+4. Cliquer sur **Importer un relevé PDF**, ou sur **Essayer la démonstration** pour découvrir les qualifications avec des données fictives séparées de l’espace réel.
 
 Pour fermer, revenir à la fenêtre de console et appuyer sur **Ctrl+C**. Fermer le navigateur seul n’arrête pas le serveur. Pour reprendre, double-cliquer à nouveau sur DEMARRER.cmd. Le dossier **data** contient vos bases persistantes : ne pas le supprimer. Sauvegarder depuis le bouton **Sauvegarder / restaurer** avant de changer de dossier ou de version. Après installation, l’application fonctionne sans Internet.
 
 Ce lanceur a été vérifié sur ses étapes Node.js sous Linux ; le double-clic et l’ouverture automatique du navigateur sous Windows n’ont pas été exécutés sur une machine Windows.
 
-## Premier parcours avec un relevé fictif
+## Importer un relevé Société Générale en PDF
 
-Le bouton de démonstration charge neuf lignes, dont deux paiements identiques volontairement conservés. Pour découvrir l’import et sa détection des doublons, revenir à l’espace réel vide et importer **examples/releve-fictif.csv** (uniquement fictif).
+1. Cliquer sur **Importer un relevé PDF**, nommer le compte, sélectionner son PDF puis **Lire le PDF**. Le traitement reste sur l’ordinateur. Les scans prennent plus de temps ; la progression est affichée.
+2. Comparer les mouvements proposés avec les pages originales affichées à côté. Vérifier la date d’opération, le libellé, le signe et le montant. Les zones colorées montrent les colonnes utilisées ; elles peuvent être ajustées si le format du relevé diffère. La date de valeur reste distincte de la date d’opération.
+3. Vérifier la période et l’année. Une date courte sans année exploitable exige une saisie explicite. Corriger les cellules si nécessaire, puis actualiser l’aperçu. Consulter aussi les lignes non interprétées : elles restent visibles et peuvent être ajoutées manuellement ou exclues explicitement.
+4. Vérifier les soldes de début et de fin lorsqu’ils figurent sur le relevé : leur différence doit correspondre à la somme des mouvements reconnus avant sélection. Les doublons sont décochés par défaut ; leur conservation exige votre confirmation. Un PDF déjà importé sur le même compte est refusé.
+5. Cocher la confirmation de comparaison avec le document original, puis **Importer … mouvements PDF**. Les opérations arrivent **à vérifier** : aucune qualification fiscale n’est confirmée automatiquement.
+
+Le lien de relevé PDF fictif dans l’écran permet de s’entraîner. Les fichiers **examples/releve-fictif-sg.pdf** (texte, deux pages) et **examples/releve-fictif-scan.pdf** (image, une page) sont entièrement fictifs. Ils reprennent des colonnes de type Société Générale : date d’opération, date de valeur, nature, débit et crédit. Ils ont été testés ; aucun relevé réel de l’utilisateur n’a encore été vérifié. La lecture de toutes les présentations bancaires n’est pas garantie. Le mode « montant signé » et le réglage des zones permettent d’adapter l’aperçu ; il faut toujours comparer le résultat au PDF.
+
+Une page scannée utilise automatiquement l’OCR français installé avec l’application. Si le document contient une couche de texte incorrecte, l’option de reconnaissance forcée permet une nouvelle lecture. Aucun modèle n’est téléchargé pendant la lecture d’un relevé. Le fichier PDF original, les pages/lignes sources et la méthode de lecture sont conservés après import et inclus dans les sauvegardes.
+
+## Qualifier les mouvements avec un relevé fictif
+
+Le bouton de démonstration charge neuf lignes, dont deux paiements identiques volontairement conservés. Pour découvrir l’import et sa détection des doublons, revenir à l’espace réel vide et importer le PDF fictif ci-dessus, ou **examples/releve-fictif.csv**. Les deux proposent les mêmes mouvements fictifs.
 
 1. Choisir un nom de compte, sélectionner le CSV et cliquer **Analyser le CSV**.
 2. Vérifier les colonnes, les erreurs, le total et les lignes retenues. Un doublon est décoché par défaut : huit mouvements sont retenus. Deux paiements identiques peuvent être légitimes ; les conserver exige votre confirmation explicite.
@@ -30,17 +42,26 @@ Les boutons rapides sur une sélection créent des **estimations**, jamais des c
 
 ## Formats et limites de cette version
 
-- CSV uniquement : UTF-8 ou Windows-1252, virgule, point-virgule ou tabulation, guillemets et cellules multilignes. Date JJ/MM/AAAA, JJ.MM.AAAA ou AAAA-MM-JJ.
+- PDF : **10 Mo et 30 pages maximum**, texte sélectionnable ou scan lisible. Un PDF protégé par mot de passe doit d’abord être déverrouillé localement. Un scan flou, des colonnes variables ou une mise en page inconnue peuvent nécessiter des corrections ; les erreurs et avertissements OCR restent visibles. Une lecture dépassant trois minutes est interrompue avec un message invitant à séparer le document.
+- CSV également disponible : UTF-8 ou Windows-1252, virgule, point-virgule ou tabulation, guillemets et cellules multilignes. Date JJ/MM/AAAA, JJ.MM.AAAA ou AAAA-MM-JJ.
 - En-têtes uniques, nom de compte explicite, montant signé **ou** débit/crédit positifs séparés. Montants français : **1 234,56** ; les notations scientifiques et les séparateurs de milliers ambigus sont refusés.
 - Si des colonnes de solde sont détectées, saisir les soldes de début et de fin : fin − début doit correspondre à la somme de toutes les lignes du fichier avant sélection. Le contrôle ne prétend pas interpréter chaque colonne de solde intermédiaire.
-- 5 Mo par fichier, 10 000 lignes/opérations par espace, 30 ventilations par mouvement, 40 Mo de sauvegarde par espace et 20 000 actions historiques. Les dépassements annulent l’action en cours.
+- 5 Mo par CSV, 10 000 opérations par espace, 30 ventilations par mouvement, 40 Mo de sauvegarde par espace et 20 000 actions historiques. Les PDF originaux comptent dans cette limite de sauvegarde. Les dépassements annulent l’action en cours.
 - Les montants documentaires remplacent les estimations. HT + TVA doit égaler le TTC traité. Une dépense taxable ne peut être confirmée sans montants facturés, vérification de la facture, droit à déduction et date TVA.
 - Les filtres de période portent sur les **dates TVA retenues des ventilations**. Recherche et filtre d’état limitent également l’export et la synthèse. Une ventilation hors période n’est pas exportée. Les ajustements de période ne s’appliquent pas aux vues filtrées par libellé ou état.
 - Les régularisations et le crédit antérieur sont propres à l’intervalle exact et au compte choisi ; aucun report automatique. Le total reste un récapitulatif de préparation, sans correspondance CA3.
 - Le CSV exporte les valeurs en **centimes entiers**, le taux en centièmes de pourcentage, les ventilations, l’état, la provenance et la synthèse. Les cellules susceptibles de devenir des formules sont neutralisées par une apostrophe.
-- **Indisponibles** : import/export Excel, PDF, OCR, téléversement/visualisation de pièces, règles récurrentes, paiements partiels et commissions documentaires complexes. Ils ne sont pas simulés. Les cas fiscaux particuliers restent à vérifier et hors du confirmé.
-- Sauvegardes JSON versionnées contenant les CSV originaux et l’historique. SHA-256 détecte une corruption, pas une falsification volontaire par quelqu’un ayant accès aux fichiers. La restauration remplace atomiquement l’espace choisi et conserve un fichier de l’état précédent. Les bases réel/démonstration sont distinctes.
+- **Indisponibles** : import/export Excel, ajout et visualisation de factures justificatives, règles récurrentes, paiements partiels et commissions documentaires complexes. Les relevés PDF bancaires sont pris en charge ; ils ne remplacent pas les factures pour justifier la TVA. Les cas fiscaux particuliers restent à vérifier et hors du confirmé.
+- Sauvegardes JSON versionnées contenant les PDF/CSV originaux et l’historique. SHA-256 détecte une corruption, pas une falsification volontaire par quelqu’un ayant accès aux fichiers. La restauration remplace atomiquement l’espace choisi et conserve un fichier de l’état précédent. Les bases réel/démonstration sont distinctes.
 - Mono-utilisateur local uniquement. Pas de publication publique, paiement, télédéclaration ou service distant. Les pièces et sauvegardes peuvent contenir vos données sensibles : conserver le dossier et les sauvegardes dans votre espace privé.
+
+## Mettre à jour l’ancienne version CSV
+
+1. Dans l’ancienne version, télécharger une sauvegarde par **Sauvegarder / restaurer**, puis arrêter le logiciel avec **Ctrl+C** dans sa console.
+2. Extraire la nouvelle archive dans un **nouveau dossier** et double-cliquer sur **DEMARRER.cmd**. Le lanceur prépare automatiquement la nouvelle interface et ses dépendances.
+3. Si l’ancienne version contenait des données, restaurer sa sauvegarde dans l’espace réel de la nouvelle version. Conserver l’ancien dossier et sa sauvegarde jusqu’à vérification.
+
+Les anciennes bases CSV sont compatibles avec la migration automatique si le dossier `data` est conservé. Les sauvegardes de format 1 sont acceptées ; les nouvelles sauvegardes utilisent le format 2 incluant les PDF. Une ancienne version du logiciel ne peut pas relire ce nouveau format.
 
 ## Développement et vérifications
 

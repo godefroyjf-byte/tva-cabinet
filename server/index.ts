@@ -4,14 +4,18 @@ import { fileURLToPath } from 'node:url';
 import { existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { Store, Conflict } from './store.ts';
+import { PdfJobs } from './pdf-jobs.ts';
+import { pdfRequestSchema } from '../shared/pdf.ts';
 import { csvRequestSchema, csvLine } from './csv.ts';
 import { amounts, dateSchema, filterOperations, matchesPart, natureLabels, statusLabels, treatmentLabels, summary, type Filters } from '../shared/model.ts';
 
 const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
+const version=JSON.parse(readFileSync(join(root,'package.json'),'utf8')).version as string;
 export function createApp(dataDirectory:string,port:number,production=true) {
   const app=express();
   app.disable('x-powered-by');
   const stores={real:new Store(dataDirectory,'real'),demo:new Store(dataDirectory,'demo')};
+  const pdfJobs=new PdfJobs();
   app.use((req,res,next)=>{
     const localPort=port===0?req.socket.localPort:port;
     const allowed=new Set(['127.0.0.1:'+localPort,'localhost:'+localPort]);
@@ -40,9 +44,29 @@ export function createApp(dataDirectory:string,port:number,production=true) {
     if(f.from&&f.to&&f.from>f.to) throw new Error('La date de début doit précéder la date de fin.');
     return f;
   };
-  app.get('/api/state',(req,res)=>res.json(storeFor(req).state()));
+  app.get('/api/state',(req,res)=>res.json({...storeFor(req).state(),version}));
+  app.get('/api/example-pdf',(_req,res)=>res.type('application/pdf').attachment('releve-fictif-sg.pdf').send(readFileSync(join(root,'examples/releve-fictif-sg.pdf'))));
   app.post('/api/preview',(req,res)=>res.json(storeFor(req).preview(csvRequestSchema.parse(req.body))));
   app.post('/api/import',(req,res)=>res.json(storeFor(req).import(req.body)));
+  app.post('/api/pdf/jobs',(req,res)=>res.json(pdfJobs.start(req.body,storeFor(req).mode)));
+  app.get('/api/pdf/jobs/:id',(req,res)=>res.json(pdfJobs.status(String(req.params.id),storeFor(req).mode)));
+  app.get('/api/pdf/jobs/:id/page/:page',(req,res)=>{
+    const job=pdfJobs.ready(String(req.params.id),storeFor(req).mode);
+    const page=z.coerce.number().int().min(1).max(30).parse(req.params.page);
+    const image=job.images[page];if(!image)throw new Error('Page PDF introuvable.');
+    res.type('image/png').send(Buffer.from(image));
+  });
+  app.post('/api/pdf/jobs/:id/cancel',(req,res)=>{
+    const id=String(req.params.id);pdfJobs.get(id,storeFor(req).mode);pdfJobs.remove(id);res.json({ok:true});
+  });
+  app.post('/api/pdf/preview',(req,res)=>{
+    const body=pdfRequestSchema.parse(req.body),store=storeFor(req);
+    res.json(store.previewPdf(pdfJobs.ready(body.jobId,store.mode),body));
+  });
+  app.post('/api/pdf/import',(req,res)=>{
+    const jobId=z.string().uuid().parse(req.body?.jobId),store=storeFor(req);
+    res.json(store.importPdf(pdfJobs.ready(jobId,store.mode),req.body));
+  });
   app.post('/api/operations',(req,res)=>res.json(storeFor(req).update(req.body)));
   app.post('/api/undo',(req,res)=>{storeFor(req).undo();res.json({ok:true});});
   app.post('/api/settings',(req,res)=>{storeFor(req).setSettings(req.body);res.json({ok:true});});
@@ -65,7 +89,7 @@ export function createApp(dataDirectory:string,port:number,production=true) {
   app.get('/api/source/:id',(req,res)=>{
     const record=storeFor(req).imports().find(i=>i.id===req.params.id);
     if(!record) {res.status(404).json({error:'Fichier introuvable.'});return;}
-    res.type('text/csv').attachment('source-'+record.id+'.csv').send(Buffer.from(record.base64,'base64'));
+    res.type(record.format==='pdf'?'application/pdf':'text/csv').attachment('source-'+record.id+'.'+record.format).send(Buffer.from(record.base64,'base64'));
   });
   app.get('/api/export',(req,res)=>{
     const store=storeFor(req);
@@ -73,10 +97,10 @@ export function createApp(dataDirectory:string,port:number,production=true) {
     const settlementKey=JSON.stringify([filters.from??'',filters.to??'',filters.account??'']);
     const settlement=(!filters.q&&!filters.status?store.settlements()[settlementKey]:undefined)??{adjustmentsCents:0,priorCreditCents:0,confirmed:false};
     const selected=filterOperations(store.list(),filters);
-    const lines=[csvLine(['Date bancaire','Compte','Libellé','TTC bancaire centimes','Nature','Traitement','Taux centièmes de %','HT centimes','TVA centimes','TVA déductible centimes','État','Date TVA','Date facture','Justificatif / référence','Provenance','Note','Import','Ligne source','Opération','Ventilation','Coefficient centièmes de %','Facture confirmée','Droit confirmé','Date TVA confirmée'])];
+    const lines=[csvLine(['Date bancaire','Compte','Libellé','TTC bancaire centimes','Nature','Traitement','Taux centièmes de %','HT centimes','TVA centimes','TVA déductible centimes','État','Date TVA','Date facture','Justificatif / référence','Provenance','Note','Import','Ligne source','Opération','Ventilation','Coefficient centièmes de %','Facture confirmée','Droit confirmé','Date TVA confirmée','Page PDF','Lecture PDF','Références PDF'])];
     for(const o of selected) for(const p of o.parts.filter(p=>matchesPart(p,filters))) {
       const a=amounts(p);
-      lines.push(csvLine([o.date,o.account,o.label,String(p.cents),natureLabels[p.nature],treatmentLabels[p.treatment],String(p.rateBps),String(a.net),String(a.vat),String(a.deductible),statusLabels[o.status],p.vatDate,p.invoiceDate,p.documentRef,a.source,p.note,o.importId,String(o.sourceLine),String(o.id),p.id,p.deductionBps===null?'À vérifier':String(p.deductionBps),p.invoiceConfirmed?'Oui':'Non',p.rightConfirmed?'Oui':'Non',p.periodConfirmed?'Oui':'Non']));
+      lines.push(csvLine([o.date,o.account,o.label,String(p.cents),natureLabels[p.nature],treatmentLabels[p.treatment],String(p.rateBps),String(a.net),String(a.vat),String(a.deductible),statusLabels[o.status],p.vatDate,p.invoiceDate,p.documentRef,a.source,p.note,o.importId,String(o.sourceLine),String(o.id),p.id,p.deductionBps===null?'À vérifier':String(p.deductionBps),p.invoiceConfirmed?'Oui':'Non',p.rightConfirmed?'Oui':'Non',p.periodConfirmed?'Oui':'Non',o.sourcePage===undefined?'':String(o.sourcePage),o.sourceMethod??'',o.sourceRefs?.map(ref=>'p'+ref.page+':l'+ref.line).join(' | ')??'']));
     }
     const s=summary(store.list(),filters,settlement);
     lines.push('',csvLine(['SYNTHÈSE','Montant en centimes']),csvLine(['TVA collectée confirmée',String(s.collected)]),csvLine(['TVA déductible confirmée',String(s.deductible)]),csvLine(['Régularisations confirmées',String(settlement.confirmed?settlement.adjustmentsCents:0)]),csvLine(['Crédit antérieur confirmé',String(settlement.confirmed?settlement.priorCreditCents:0)]),csvLine(['Solde de préparation',String(s.balance)]),csvLine(['Estimation collectée',String(s.estimatedCollected)]),csvLine(['Estimation déductible',String(s.estimatedDeductible)]),csvLine(['Opérations à vérifier',String(s.pendingCount)]),csvLine(['Montant absolu à vérifier',String(s.unresolvedCents)]));
@@ -108,23 +132,26 @@ export function createApp(dataDirectory:string,port:number,production=true) {
     const status=e instanceof Conflict?409:e.type==='entity.too.large'?413:400;
     res.status(status).json({error:e instanceof z.ZodError?'Entrée invalide : '+e.issues.map(i=>i.path.join('.')+' — '+i.message).join(' ; '):e.type==='entity.too.large'?'Fichier trop volumineux.':e.message||'Erreur locale.'});
   });
-  return {app,stores};
+  return {app,stores,pdfJobs};
 }
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   const port=Number(process.env.PORT??3210);
   if(!Number.isInteger(port)||port<1024||port>65535) throw new Error('PORT doit être un entier entre 1024 et 65535.');
   const production=process.argv.includes('--production');
-  const {app,stores}=createApp(resolve(process.env.TVA_DATA_DIR??join(root,'data')),port,production);
+  const {app,stores,pdfJobs}=createApp(resolve(process.env.TVA_DATA_DIR??join(root,'data')),port,production);
   if(!production) {
     const {createServer}=await import('vite');
     const vite=await createServer({root,server:{middlewareMode:true,hmr:false},appType:'spa'});
     app.use(vite.middlewares);
   }
-  const server=app.listen(port,'127.0.0.1',()=>console.log('TVA Cabinet — http://127.0.0.1:'+port+' — données locales uniquement'));
+  const server=app.listen(port,'127.0.0.1');
+  server.once('listening',()=>{console.log('TVA Cabinet — http://127.0.0.1:'+port+' — données locales uniquement');process.send?.({type:'ready'});});
   server.on('error',(e:NodeJS.ErrnoException)=>{
     console.error(e.code==='EADDRINUSE'?'Le port est déjà utilisé. Fermez l’autre instance ou choisissez un autre PORT.':'Le serveur local n’a pas pu démarrer.');
-    Object.values(stores).forEach(s=>s.close());process.exitCode=1;
+    pdfJobs.close();Object.values(stores).forEach(s=>s.close());process.exitCode=1;
+    if(process.connected)process.disconnect();
   });
-  const stop=()=>server.close(()=>{Object.values(stores).forEach(s=>s.close());process.exit(0);});
+  let stopping=false;
+  const stop=()=>{if(stopping)return;stopping=true;pdfJobs.close();server.close(()=>{Object.values(stores).forEach(s=>s.close());process.exit(0);});};
   process.once('SIGINT',stop);process.once('SIGTERM',stop);
 }

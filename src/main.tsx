@@ -1,45 +1,18 @@
-import React, { useEffect, useRef, useState, type ReactNode, type FormEvent } from 'react';
+import React, { useEffect, useState, type FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { amounts, defaultSettings, filterOperations, inputMoney, money, natureLabels, newPart, parseMoney, statusLabels, sumCents, summary, treatmentLabels, type Filters, type Operation, type Part, type Settings, type Settlement } from '../shared/model.ts';
 import type { Preview, CsvRequest } from '../server/csv.ts';
+import {Modal,MoneyInput,request,errorText,type Mode} from './ui.tsx';
+import {PdfImportDialog} from './PdfImport.tsx';
 import './style.css';
 
-type Mode='real'|'demo';
-type State={operations:Operation[];settings:Settings;locks:string[];settlements:Record<string,Settlement>;mode:Mode;history:{id:string;at:string;label:string;kind:string;undone:boolean;count:number}[]};
+type State={version?:string;operations:Operation[];settings:Settings;locks:string[];settlements:Record<string,Settlement>;mode:Mode;history:{id:string;at:string;label:string;kind:string;undone:boolean;count:number}[]};
 type FullPreview=Preview & {alreadyImported:boolean};
 const emptySettlement:Settlement={adjustmentsCents:0,priorCreditCents:0,confirmed:false};
-async function request<T>(path:string,mode:Mode,body?:unknown):Promise<T> {
-  const response=await fetch('/api'+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json','X-TVA-Client':'1','X-TVA-Mode':mode},body:body===undefined?undefined:JSON.stringify(body)});
-  const result=await response.json();
-  if(!response.ok) throw new Error(result.error??'Le serveur local ne répond pas.');
-  return result as T;
-}
-const errorText=(e:unknown)=>e instanceof Error?e.message:'Une erreur est survenue.';
-function Modal({title,children,onClose,wide=false}:{title:string;children:ReactNode;onClose:()=>void;wide?:boolean}) {
-  const ref=useRef<HTMLDialogElement>(null);
-  useEffect(()=>{const dialog=ref.current;dialog?.showModal();return ()=>dialog?.close();},[]);
-  return <dialog ref={ref} className={wide?'modal wide':'modal'} onCancel={e=>{e.preventDefault();onClose();}}>
-    <header className="modal-head"><h2>{title}</h2><button aria-label="Fermer la fenêtre" className="icon" onClick={onClose}>×</button></header>{children}
-  </dialog>;
-}
-function MoneyInput({value,onChange,label,nullable=false,min,max}:{value:number|null;onChange:(n:number|null)=>void;label:string;nullable?:boolean;min?:number;max?:number}) {
-  const [text,setText]=useState(value===null?'':inputMoney(value));
-  const committed=useRef(value);
-  useEffect(()=>{if(value!==committed.current){setText(value===null?'':inputMoney(value));committed.current=value;}},[value]);
-  function parse(text:string) {const n=nullable&&text.trim()===''?null:parseMoney(text);if(n!==null&&(min!==undefined&&n<min||max!==undefined&&n>max))throw new Error('Pourcentage attendu entre 0 et 100.');return n;}
-  return <input aria-label={label} inputMode="decimal" value={text} required={!nullable} onChange={e=>{
-    const text=e.target.value;setText(text);
-    try {const value=parse(text);committed.current=value;onChange(value);e.target.setCustomValidity('');}
-    catch(e2) {e.target.setCustomValidity(errorText(e2));}
-  }} onBlur={e=>{
-    try {const value=parse(text);setText(value===null?'':inputMoney(value));committed.current=value;onChange(value);e.target.setCustomValidity('');}
-    catch(e2) {e.target.setCustomValidity(errorText(e2));}
-  }}/>;
-}
 function App() {
   const [mode,setMode]=useState<Mode>(localStorage.getItem('tva-mode')==='demo'?'demo':'real');
   const [data,setData]=useState<State|null>(null),[error,setError]=useState(''),[message,setMessage]=useState('');
-  const [busy,setBusy]=useState(false),[modal,setModal]=useState<'import'|'backup'|'settings'|null>(null),[editing,setEditing]=useState<Operation|null>(null);
+  const [busy,setBusy]=useState(false),[modal,setModal]=useState<'import'|'pdf'|'backup'|'settings'|null>(null),[editing,setEditing]=useState<Operation|null>(null);
   const [filters,setFilters]=useState<Filters>({}),[selected,setSelected]=useState<number[]>([]);
   const [sort,setSort]=useState<'date'|'label'|'cents'>('date'),[direction,setDirection]=useState(1),[page,setPage]=useState(0);
   async function reload() {setData(await request<State>('/state',mode));}
@@ -94,7 +67,7 @@ function App() {
       {mode==='demo'?<div className="banner demo"><span><strong>Démonstration</strong> · Données fictives, séparées de votre espace réel.</span><button onClick={()=>setMode('real')} disabled={busy}>Revenir à mon espace</button></div>:
       <div className="banner"><span>Aucun relevé n’est transmis à un service externe.</span><button onClick={demo} disabled={busy}>Essayer la démonstration</button></div>}
       <div className="page-title"><div><p className="eyebrow">ESPACE DE TRAVAIL {mode==='demo'?'· DÉMONSTRATION':''}</p><h1>Préparer ma TVA</h1><p>Importez vos mouvements, vérifiez leur traitement et gardez la maîtrise des totaux.</p></div>
-      <button className="primary" onClick={()=>setModal('import')} disabled={!data||busy}>＋ Importer un relevé CSV</button></div>
+      <div className="import-actions"><button className="primary" onClick={()=>setModal('pdf')} disabled={!data||busy}>＋ Importer un relevé PDF</button><button onClick={()=>setModal('import')} disabled={!data||busy}>Importer un relevé CSV</button></div></div>
       {error&&<div role="alert" className="notice error">{error}<button onClick={()=>setError('')} aria-label="Masquer l’erreur">×</button></div>}
       {message&&<div role="status" className="notice success">{message}</div>}
       {!data?<div className="panel empty"><h2>Connexion au serveur local…</h2>{error&&<button onClick={()=>perform(reload)}>Réessayer</button>}</div>:<>
@@ -117,14 +90,14 @@ function App() {
       <section className="panel operations">
         <div className="section-head"><div><h2>Mouvements bancaires <span className="count">{visible.length}</span></h2><p>Un clic sur un libellé ouvre sa qualification.</p></div><a className="button" download href={download('export?'+query)}>Exporter la vue en CSV</a></div>
         {selected.length>0&&<div className="selection-bar"><strong>{selected.length} sélectionnée(s)</strong><button disabled={busy} onClick={()=>quick('revenue')}>Recette 20 % · estimation</button><button disabled={busy} onClick={()=>quick('expense')}>Dépense 20 % · estimation</button><button disabled={busy} onClick={()=>quick('transfer')}>Virement hors champ</button><button disabled={busy} onClick={()=>quick('exclude')}>Exclure des totaux</button></div>}
-        {!visible.length?<div className="empty"><span className="empty-icon">↧</span><h3>{data.operations.length?'Aucun résultat pour ces filtres':'Votre tableau commence avec un relevé'}</h3><p>{data.operations.length?'Modifiez la période, le compte ou votre recherche.':'Importez un CSV ou essayez le parcours avec nos données fictives.'}</p>{!data.operations.length&&<button className="primary" disabled={busy} onClick={demo}>Découvrir avec le relevé fictif</button>}</div>:
+        {!visible.length?<div className="empty"><span className="empty-icon">↧</span><h3>{data.operations.length?'Aucun résultat pour ces filtres':'Votre tableau commence avec un relevé'}</h3><p>{data.operations.length?'Modifiez la période, le compte ou votre recherche.':'Importez un relevé PDF ou essayez le parcours avec nos données fictives.'}</p>{!data.operations.length&&<button className="primary" disabled={busy} onClick={demo}>Découvrir avec le relevé fictif</button>}</div>:
         <div className="table-scroll"><table><thead><tr><th><input type="checkbox" aria-label="Sélectionner les lignes de cette page" checked={shown.length>0&&shown.every(o=>selected.includes(o.id))} onChange={e=>setSelected(e.target.checked?[...new Set([...selected,...shown.map(o=>o.id)])]:selected.filter(id=>!shown.some(o=>o.id===id)))}/></th>
         <th><button className="sort" onClick={()=>{setSort('date');setDirection(sort==='date'?-direction:1);}}>Date bancaire ↕</button></th>
         <th><button className="sort" onClick={()=>{setSort('label');setDirection(sort==='label'?-direction:1);}}>Libellé / compte ↕</button></th>
         <th className="number"><button className="sort" onClick={()=>{setSort('cents');setDirection(sort==='cents'?-direction:1);}}>TTC signé ↕</button></th><th>Qualification</th><th className="number">HT traité</th><th className="number">TVA calculée</th><th className="number">Déductible</th><th>État</th><th>Justificatif</th><th>Note</th></tr></thead>
         <tbody>{shown.map(o=><tr key={o.id} className={selected.includes(o.id)?'selected':''}><td><input type="checkbox" aria-label={'Sélectionner '+o.label+' ligne '+o.sourceLine} checked={selected.includes(o.id)} onChange={e=>setSelected(e.target.checked?[...selected,o.id]:selected.filter(id=>id!==o.id))}/></td>
           <td className="nowrap">{o.date.split('-').reverse().join('/')}{o.parts.some(p=>data.locks.includes(p.vatDate.slice(0,7)))&&<small>Verrouillé</small>}</td>
-          <td><button className="row-label" onClick={()=>setEditing(o)}>{o.label}</button><small>{o.account}{o.parts.length>1?' · '+o.parts.length+' ventilations':''}</small></td><td className={'number amount '+(o.cents<0?'':'positive')}>{money(o.cents)}</td>
+          <td><button className="row-label" onClick={()=>setEditing(o)}>{o.label}</button><small>{o.account}{o.sourcePage?' · PDF p. '+o.sourcePage:''}{o.parts.length>1?' · '+o.parts.length+' ventilations':''}</small></td><td className={'number amount '+(o.cents<0?'':'positive')}>{money(o.cents)}</td>
           <td>{o.parts.length>1?'Ventilation multiple':natureLabels[o.parts[0].nature]}<small>{o.parts.length===1?(o.parts[0].treatment==='taxable'?inputMoney(o.parts[0].rateBps)+' %':treatmentLabels[o.parts[0].treatment]):'Ouvrir pour vérifier'}</small></td>
           <td className="number">{money(sumCents(o.parts.map(p=>amounts(p).net)))}</td>
           <td className="number">{money(sumCents(o.parts.map(p=>amounts(p).vat)))}<small>{o.status==='pending'?'Estimation':o.status==='excluded'?'Non comptabilisée':'Confirmée'}</small></td>
@@ -142,10 +115,11 @@ function App() {
       </section>
       <section className="panel history"><div className="section-head"><h2>Historique</h2><button disabled={busy||!data.history.some(h=>h.kind==='edit'&&!h.undone)} onClick={()=>perform(async()=>{await request('/undo',mode,{});await reload();setMessage('Dernière qualification annulée et annulation tracée.');})}>Annuler la dernière qualification</button></div>
       {data.history.length?<ul>{data.history.slice(0,12).map(h=><li key={h.id}><span>{h.label}{h.undone?' · annulée':''}</span><small>{new Date(h.at).toLocaleString('fr-FR')}</small></li>)}</ul>:<p className="muted">Vos qualifications et leurs annulations apparaîtront ici.</p>}</section></div>
-      <footer className="footnote">TVA Cabinet · Préparation locale mono-utilisateur. Les taux sont des choix manuels, sans validation de leur éligibilité. Aucune télédéclaration ni paiement.</footer>
+      <footer className="footnote">TVA Cabinet{data.version?' '+data.version:''} · Préparation locale mono-utilisateur. Les taux sont des choix manuels, sans validation de leur éligibilité. Aucune télédéclaration ni paiement.</footer>
       </>}
     </main>
     {modal==='import'&&data&&<ImportDialog mode={mode} accounts={[...new Set(data.operations.map(o=>o.account))]} onClose={()=>setModal(null)} onDone={async count=>{await reload();setModal(null);setMessage(count+' opérations importées, en attente de qualification.');}}/>}
+    {modal==='pdf'&&data&&<PdfImportDialog mode={mode} accounts={[...new Set(data.operations.map(o=>o.account))]} onClose={()=>setModal(null)} onDone={async count=>{await reload();setModal(null);setMessage(count+' mouvements PDF importés, en attente de qualification.');}}/>}
     {modal==='settings'&&data&&<SettingsDialog data={data} mode={mode} onClose={()=>setModal(null)} onDone={async()=>{await reload();setMessage('Paramètres enregistrés.');}}/>}
     {modal==='backup'&&<BackupDialog mode={mode} onClose={()=>setModal(null)} onDone={async()=>{await reload();setModal(null);setMessage('Sauvegarde restaurée. L’état précédent a été conservé sur disque.');}}/>}
     {editing&&data&&<Editor key={editing.id} operation={editing} mode={mode} rates={data.settings.rates} locked={editing.parts.some(p=>data.locks.includes(p.vatDate.slice(0,7)))} onClose={()=>setEditing(null)} onSaved={async next=>{await reload();const index=visible.findIndex(o=>o.id===editing.id);setEditing(next?visible[index+1]??null:null);setMessage('Qualification enregistrée.');}}/>}
@@ -167,7 +141,7 @@ function Editor({operation,mode,rates,locked,onClose,onSaved}:{operation:Operati
     catch(e){setError(errorText(e));}finally{setBusy(false);}
   }
   return <Modal title="Qualifier le mouvement" wide onClose={close}><form onSubmit={submit}>
-    <div className="editor-intro"><div><h3>{o.label}</h3><p>{o.date.split('-').reverse().join('/')} · {o.account} · Ligne source {o.sourceLine}</p></div><strong className="large-amount">{money(o.cents)}</strong></div>
+    <div className="editor-intro"><div><h3>{o.label}</h3><p>{o.date.split('-').reverse().join('/')} · {o.account} · {o.sourcePage?'Page '+o.sourcePage+' · ligne '+(o.sourceRefs?.[0].line??o.sourceLine):'Ligne source '+o.sourceLine}{o.sourceMethod==='ocr'?' · Lecture OCR':''}</p></div><strong className="large-amount">{money(o.cents)}</strong></div>
     {error&&<p role="alert" className="notice error">{error}</p>}
     {locked&&<p className="notice warning">Période verrouillée. Rouvrez-la dans les paramètres pour modifier cette opération.</p>}
     <p className="hint">Le TTC bancaire garde son signe. Pour une dépense, les montants de facture sont positifs ; pour son remboursement, ils sont négatifs. Une suggestion ne confirme rien.</p>
@@ -194,7 +168,7 @@ function Editor({operation,mode,rates,locked,onClose,onSaved}:{operation:Operati
     </section>;})}
     <div className="split-tools"><button type="button" onClick={()=>set({...o,status:'pending',parts:[...o.parts,newPart(0,o.date,crypto.randomUUID())]})}>＋ Ajouter une ventilation</button><span className={sumCents(o.parts.map(p=>p.cents))===o.cents?'':'error-text'}>Ventilé : {money(sumCents(o.parts.map(p=>p.cents)))} / {money(o.cents)}</span></div>
     </fieldset>
-    <details className="raw"><summary>Provenance bancaire et cellules d’origine</summary><p>Ligne {o.sourceLine} · <a href={'/api/source/'+o.importId+'?mode='+mode} download>Télécharger le fichier CSV original</a></p><pre>{JSON.stringify(o.raw,null,2)}</pre></details>
+    <details className="raw"><summary>Provenance bancaire et données d’origine</summary><p>{o.sourcePage?'PDF · page '+o.sourcePage+' · ligne '+(o.sourceRefs?.[0].line??o.sourceLine):'CSV · ligne '+o.sourceLine} · <a href={'/api/source/'+o.importId+'?mode='+mode} download>Télécharger le document original</a></p><pre>{JSON.stringify(o.raw,null,2)}</pre></details>
     <div className="modal-actions"><button type="button" onClick={close}>Fermer</button><button disabled={busy||locked} type="submit" value="pending">Enregistrer à vérifier</button><button disabled={busy||locked} type="submit" value="next">Enregistrer et suivant</button><button disabled={busy||locked} type="submit" value="confirmed" className="primary">Confirmer l’opération</button><button disabled={busy||locked} type="submit" value="excluded">Exclure</button></div>
   </form></Modal>;
 }
@@ -227,7 +201,7 @@ function ImportDialog({mode,accounts,onClose,onDone}:{mode:Mode;accounts:string[
   }
   const dirty=!!preview&&signature(csv,edits)!==analysed;
   return <Modal title="Importer un relevé CSV" wide onClose={onClose}>
-    <p className="hint">CSV UTF-8 ou Windows-1252, jusqu’à 5 Mo et 10 000 lignes. Excel, PDF et OCR ne sont pas disponibles. Votre fichier reste local.</p>
+    <p className="hint">CSV UTF-8 ou Windows-1252, jusqu’à 5 Mo et 10 000 lignes. Pour un PDF, utilisez le bouton « Importer un relevé PDF » de l’écran principal. Excel n’est pas disponible. Votre fichier reste local.</p>
     {error&&<p className="notice error" role="alert">{error}</p>}
     <form onSubmit={analyse} className="import-form"><div className="form-grid">
       <label>Compte bancaire<input required list="accounts" value={csv.account} maxLength={100} onChange={e=>{setCsv({...csv,account:e.target.value});setPreview(null);}}/><datalist id="accounts">{accounts.map(a=><option key={a} value={a}/>)}</datalist></label>
@@ -267,13 +241,13 @@ function SettingsDialog({data,mode,onClose,onDone}:{data:State;mode:Mode;onClose
     <hr/><h3>Verrouillage volontaire d’une période</h3><p>Une période verrouillée refuse les changements et les imports qui la concernent.</p>
     <div className="lock-controls"><label>Mois<input type="month" value={month} onChange={e=>setMonth(e.target.value)}/></label><button disabled={busy||!month} onClick={()=>run(async()=>{await request('/lock',mode,{month,locked:!data.locks.includes(month)});})}>{data.locks.includes(month)?'Rouvrir explicitement':'Verrouiller ce mois'}</button></div>
     <p>Mois verrouillés : {data.locks.length?data.locks.join(', '):'aucun'}</p>
-    <p className="hint">Règles automatiques, ajout de justificatifs, Excel, PDF et OCR : indisponibles dans cette première version.</p>
+    <p className="hint">Les relevés PDF texte et scannés sont lus localement avec un aperçu à vérifier. Règles automatiques, ajout de justificatifs de factures et Excel : indisponibles.</p>
   </Modal>;
 }
 function BackupDialog({mode,onClose,onDone}:{mode:Mode;onClose:()=>void;onDone:()=>Promise<void>}) {
   const [backup,setBackup]=useState<unknown>(null),[confirmation,setConfirmation]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
   return <Modal title="Sauvegarde et restauration" onClose={onClose}>
-    <p>La sauvegarde contient les opérations, qualifications, fichiers CSV originaux, paramètres, périodes verrouillées et historique de l’espace <strong>{mode==='demo'?'démonstration':'réel'}</strong>.</p>
+    <p>La sauvegarde contient les opérations, qualifications, documents PDF et CSV originaux, paramètres, périodes verrouillées et historique de l’espace <strong>{mode==='demo'?'démonstration':'réel'}</strong>.</p>
     <a className="button primary" download href={'/api/backup?mode='+mode}>Télécharger la sauvegarde complète</a>
     <hr/><h3>Restaurer une sauvegarde</h3><p>L’intégrité et le format sont contrôlés avant tout remplacement. L’état précédent sera conservé dans le dossier local <code>data/backups</code>.</p>
     {error&&<p role="alert" className="notice error">{error}</p>}

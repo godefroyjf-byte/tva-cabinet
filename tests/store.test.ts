@@ -96,7 +96,7 @@ test('Échec en cours de restauration : rollback de la base complète',t=>{
 test('Isolation démonstration/réel et migrations réexécutables',t=>{
   const {dir,store}=setup(t);load(store);const demo=new Store(dir,'demo');assert.equal(demo.list().length,0);demo.close();
   const reopened=new Store(dir,'real');assert.equal(reopened.list().length,2);
-  assert.equal(reopened.db.prepare('SELECT COUNT(*) AS n FROM migrations').get()?.n,1);reopened.close();
+  assert.equal(reopened.db.prepare('SELECT COUNT(*) AS n FROM migrations').get()?.n,2);reopened.close();
 });
 test('Rapprochement des soldes obligatoire si présent dans le relevé, import atomiquement refusé en cas d’écart',t=>{
   const {store}=setup(t);

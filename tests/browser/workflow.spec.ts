@@ -6,11 +6,13 @@ test('Parcours réel dans le navigateur : CSV, qualification, dépenses, ventila
   await page.goto('/');
   await expect(page.getByRole('heading',{name:'Préparer ma TVA'})).toBeVisible();
   await page.getByRole('button',{name:'Importer un relevé CSV',exact:false}).click();
+  await page.getByRole('dialog').getByRole('combobox',{name:'Compte bancaire',exact:true}).fill('Compte principal');
   await page.getByLabel('Relevé CSV',{exact:true}).setInputFiles('examples/releve-fictif.csv');
   await page.getByRole('button',{name:'Analyser le CSV',exact:true}).click();
   await expect(page.getByText('1 doublon(s) potentiel(s)',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Importer 8 opérations',exact:true}).click();
   await expect(page.getByText('8 opérations importées, en attente de qualification.',{exact:true})).toBeVisible();
+  await page.getByRole('combobox',{name:'Compte',exact:true}).selectOption('Compte principal');
   await page.getByRole('button',{name:'Paramètres',exact:true}).click();
   await page.getByLabel('Régime vérifié').selectOption('receipts');
   await page.getByLabel('J’ai vérifié ce régime', {exact:false}).check();
@@ -50,7 +52,7 @@ test('Parcours réel dans le navigateur : CSV, qualification, dépenses, ventila
   const download=await downloadPromise;
   const path=await download.path();expect(path).not.toBeNull();
   const backup=JSON.parse(await readFile(path!,'utf8'));
-  expect(backup.payload.operations).toHaveLength(8);
+  expect(backup.payload.operations.filter((operation:{account:string})=>operation.account==='Compte principal')).toHaveLength(8);
   await page.getByLabel('Fichier de sauvegarde',{exact:true}).setInputFiles(path!);
   await page.getByLabel('Pour remplacer l’espace actuel, saisissez RESTAURER',{exact:true}).fill('RESTAURER');
   await page.getByRole('button',{name:'Restaurer et remplacer cet espace',exact:true}).click();

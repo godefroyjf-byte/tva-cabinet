@@ -5,21 +5,24 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { MAX_CENTS, centsSchema, dateSchema, operationSchema, settingsSchema, settlementSchema, defaultSettings, newPart, validateOperation, type Operation, type Settings, type Settlement } from '../shared/model.ts';
 import { previewCsv, csvRequestSchema, type CsvRequest } from './csv.ts';
+import { pdfImportRequestSchema,pdfMetadataSchema,type PdfDocument,type PdfRequest } from '../shared/pdf.ts';
+import { previewPdf } from './pdf-preview.ts';
 
 const importSchema = z.object({
   id:z.string().uuid(),account:z.string().min(1).max(100),filename:z.string().max(255),
-  base64:z.string().max(7_000_000),hash:z.string().regex(/^[a-f0-9]{64}$/),at:z.string().datetime(),
+  base64:z.string().max(14_000_000),hash:z.string().regex(/^[a-f0-9]{64}$/),at:z.string().datetime(),
+  format:z.enum(['csv','pdf']).default('csv'),pdf:pdfMetadataSchema.optional(),
   encoding:z.string().max(50),delimiter:z.string().max(1),mapping:z.record(z.string(),z.string()),
-  skippedLines:z.array(z.number().int().positive()).max(10000),
+  skippedLines:z.array(z.number().int().positive()).max(20000),
   openingBalanceCents:centsSchema.nullable(),closingBalanceCents:centsSchema.nullable()
-}).strict();
+}).strict().refine(record=>(record.format==='pdf')===!!record.pdf,'Métadonnées de source PDF incohérentes.');
 const historySchema = z.object({
   id:z.string().uuid(),at:z.string().datetime(),label:z.string().max(200),kind:z.enum(['edit','undo']),undone:z.boolean(),
   before:z.array(operationSchema).max(1000),after:z.array(operationSchema).max(1000)
 }).strict();
 const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 const backupPayloadSchema = z.object({
-  format:z.literal(1),mode:z.enum(['real','demo']),createdAt:z.string().datetime(),settings:settingsSchema,
+  format:z.union([z.literal(1),z.literal(2)]),mode:z.enum(['real','demo']),createdAt:z.string().datetime(),settings:settingsSchema,
   operations:z.array(operationSchema).max(10000),imports:z.array(importSchema).max(1000),history:z.array(historySchema).max(20000),
   locks:z.array(monthSchema).max(1200),settlements:z.record(z.string().max(300),settlementSchema)
 }).strict();
@@ -42,6 +45,10 @@ export class Store {
       this.db.exec('CREATE TABLE operations (id INTEGER PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE imports (id TEXT PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE history (id TEXT PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE metadata (key TEXT PRIMARY KEY, payload TEXT NOT NULL);');
       this.db.prepare('INSERT INTO migrations(version) VALUES (1)').run();
     });
+    if(!this.db.prepare('SELECT version FROM migrations WHERE version=2').get()) {
+      // Les champs PDF sont additionnels dans les documents JSON ; les anciens CSV restent intacts.
+      this.transaction(()=>this.db.prepare('INSERT INTO migrations(version) VALUES (2)').run());
+    }
   }
   close() { this.db.close(); }
   transaction<T>(fn:()=>T):T {
@@ -147,6 +154,44 @@ export class Store {
       return {count:operations.length,skipped:record.skippedLines.length};
     });
   }
+  previewPdf(job:{document:PdfDocument;hash:string},input:PdfRequest) {
+    const preview=previewPdf(job.document,input,this.list());
+    return {...preview,alreadyImported:this.imports().some(i=>i.hash===job.hash&&i.account===input.account)};
+  }
+  importPdf(job:{document:PdfDocument;hash:string;filename:string;base64:string},input:unknown) {
+    const request=pdfImportRequestSchema.parse(input);
+    const {selectedLines,acceptRejected,confirmDuplicates,reviewed,...options}=request;
+    return this.transaction(()=>{
+      const preview=this.previewPdf(job,options);
+      if(preview.alreadyImported)throw new Error('Ce PDF a déjà été importé pour ce compte.');
+      if(preview.errorCount&&!acceptRejected)throw new Error('Corrigez les lignes invalides ou confirmez explicitement leur exclusion.');
+      if((preview.options.openingBalanceCents===null)!==(preview.options.closingBalanceCents===null))throw new Error('Saisissez les deux soldes du relevé.');
+      if(preview.balanceDetected&&preview.balanceDifference===null)throw new Error('Des soldes sont présents dans le PDF : vérifiez et renseignez le solde de début et le solde de fin.');
+      if(preview.balanceDifference!==null&&(preview.balanceDifference!==0||preview.errorCount))throw new Error('Les mouvements reconnus ne correspondent pas aux soldes du relevé. Corrigez les lignes ou les soldes avant l’import.');
+      const chosen=new Set(selectedLines);
+      if(chosen.size!==selectedLines.length)throw new Error('Sélection de lignes dupliquée.');
+      const rows=preview.rows.filter(row=>chosen.has(row.line));
+      if(rows.length!==chosen.size||rows.some(row=>row.error))throw new Error('La sélection contient une ligne absente ou invalide.');
+      if(rows.some(row=>row.duplicate)&&!confirmDuplicates)throw new Error('Confirmez le maintien des doublons potentiels sélectionnés.');
+      const old=this.list();
+      if(old.length+rows.length>10000)throw new Error('Cette version est limitée à 10 000 opérations par espace.');
+      const id=randomUUID();let next=Math.max(0,...old.map(o=>o.id))+1;
+      const operations=rows.map(row=>operationSchema.parse({id:next++,importId:id,sourceLine:row.line,sourcePage:row.page,sourceMethod:row.method,sourceRefs:row.sourceRefs,
+        account:request.account,date:row.date,label:row.label,cents:row.cents,raw:row.raw,status:'pending',revision:0,parts:[newPart(row.cents,row.date)]}));
+      this.assertUnlocked(operations);
+      const allLines=job.document.pages.flatMap(page=>page.lines);
+      const included=new Set(rows.flatMap(row=>row.sourceRefs.map(ref=>ref.page+':'+ref.line)));
+      const record=importSchema.parse({id,account:request.account,filename:job.filename,base64:job.base64,hash:job.hash,format:'pdf',at:new Date().toISOString(),
+        encoding:preview.methods.includes('ocr')?'PDF / OCR local':'PDF texte',delimiter:'',mapping:Object.fromEntries(Object.entries(preview.options.layout).map(([key,value])=>[key,JSON.stringify(value)])),
+        skippedLines:allLines.filter(line=>!included.has(line.page+':'+line.line)).map(line=>line.id),
+        openingBalanceCents:preview.options.openingBalanceCents,closingBalanceCents:preview.options.closingBalanceCents,
+        pdf:{pageCount:preview.pageCount,methods:preview.methods,layout:preview.options.layout,year:preview.options.year,periodStart:preview.options.periodStart,periodEnd:preview.options.periodEnd,
+          excludedLines:preview.options.excludedLines,reviewed,sourceLines:allLines.map(({id,page,line,text,method,confidence})=>({id,page,line,text,method,confidence}))}});
+      this.db.prepare('INSERT INTO imports(id,payload) VALUES (?,?)').run(id,JSON.stringify(record));
+      operations.forEach(operation=>this.put(operation));this.assertStorageSize();
+      return {count:operations.length,skipped:preview.rows.length-operations.length};
+    });
+  }
   lock(month:string, locked:boolean) {
     monthSchema.parse(month);
     this.setMetadata('locks',locked ? [...new Set([...this.locks(),month])] : this.locks().filter(m=>m!==month));
@@ -161,7 +206,7 @@ export class Store {
     this.setMetadata('settlements',{...this.settlements(),[key]:value});
   }
   backup():Backup {
-    const payload={format:1 as const,mode:this.mode,createdAt:new Date().toISOString(),settings:this.settings(),operations:this.list(),imports:this.imports(),history:this.history(),locks:this.locks(),settlements:this.settlements()};
+    const payload={format:2 as const,mode:this.mode,createdAt:new Date().toISOString(),settings:this.settings(),operations:this.list(),imports:this.imports(),history:this.history(),locks:this.locks(),settlements:this.settlements()};
     return {payload,checksum:createHash('sha256').update(JSON.stringify(payload)).digest('hex')};
   }
   assertStorageSize() {
@@ -182,16 +227,24 @@ export class Store {
     if(p.mode!==this.mode) throw new Error('Restaurez cette sauvegarde dans le même espace (démonstration ou réel).');
     if(new Set(p.operations.map(o=>o.id)).size!==p.operations.length||new Set(p.imports.map(i=>i.id)).size!==p.imports.length||new Set(p.history.map(h=>h.id)).size!==p.history.length) throw new Error('Identifiants dupliqués dans la sauvegarde.');
     const imports=new Map(p.imports.map(i=>[i.id,i]));
+    const validateSource=(operation:Operation)=>{
+      const source=imports.get(operation.importId);
+      if(!source||source.account!==operation.account)throw new Error('Référence de fichier source incohérente.');
+      if(source.format==='pdf') {
+        const line=source.pdf?.sourceLines.find(line=>line.id===operation.sourceLine);
+        if(!line||operation.sourcePage!==line.page||!operation.sourceRefs?.length||!operation.sourceRefs.every(ref=>source.pdf!.sourceLines.some(l=>l.page===ref.page&&l.line===ref.line)))throw new Error('Provenance PDF incohérente.');
+      } else if(operation.sourcePage!==undefined||operation.sourceRefs!==undefined||operation.sourceMethod!==undefined)throw new Error('Provenance CSV incohérente.');
+    };
     for(const i of p.imports) if(createHash('sha256').update(Buffer.from(i.base64,'base64')).digest('hex')!==i.hash) throw new Error('Un fichier source est altéré.');
     for(const o of p.operations) {
       validateOperation(o,p.settings);
-      if(imports.get(o.importId)?.account!==o.account) throw new Error('Référence de fichier source incohérente.');
+      validateSource(o);
     }
     for(const h of p.history) {
       if(h.before.length!==h.after.length||new Set(h.after.map(o=>o.id)).size!==h.after.length) throw new Error('Historique incohérent.');
       for(const o of [...h.before,...h.after]) {
         validateOperation(o,{...p.settings,regime:'receipts',regimeConfirmed:true});
-        if(imports.get(o.importId)?.account!==o.account) throw new Error('Provenance de l’historique incohérente.');
+        validateSource(o);
       }
     }
     for(const key of Object.keys(p.settlements)) {

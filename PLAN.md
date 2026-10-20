@@ -1,6 +1,6 @@
 # Plan d'implémentation
 
-État au 20 octobre 2026 : première version CSV fonctionnelle, persistante et testée. Aucun déploiement public.
+État au 20 octobre 2026 : version 0.2.0 avec imports PDF texte et scans par OCR français local, en plus du parcours CSV. Aucun déploiement public.
 
 ## Lot 1 — Fondation
 - [x] Initialiser React/TypeScript, Node.js/TypeScript, SQLite et lockfile npm.
@@ -30,14 +30,18 @@ les calculs se recoupent, les données sont retrouvées au redémarrage.
 
 ## Lot 4 — Imports/exports avancés
 - [ ] Excel avec aperçu et export.
-- [ ] PDF texte avec confirmation et provenance des lignes.
-- [ ] Détection explicite des scans et formats non pris en charge.
-- [ ] Documentation des formats réellement testés.
+- [x] PDF texte avec aperçu original, corrections, confirmation et provenance des pages/lignes.
+- [x] Détection des scans et OCR français local, sans envoi à un service externe.
+- [x] Zones de colonnes réglables, dates d’opération distinctes des dates de valeur, année/période explicites, lignes ignorées visibles et contrôle des soldes.
+- [x] Limites et erreurs des PDF protégés/endommagés ; lecture asynchrone avec progression et annulation.
+- [x] Sources PDF persistantes, sauvegarde format 2 et lecture des anciennes sauvegardes CSV format 1.
+- [x] Documentation des formats réellement testés : exemples fictifs à colonnes de type Société Générale, texte multi-pages et scan lisible.
+- [ ] Vérification sur un relevé Société Générale réel de l’utilisateur.
 - [ ] Paiements partiels, commissions et cas documentaires avancés.
 
 Ne cocher une tâche qu'après implémentation et vérification.
 Si un lot est partiel, le dire au lieu de présenter tout le périmètre comme livré.
 
-Le prochain lot prioritaire porte sur la vérification Windows puis les justificatifs locaux.
-Les fonctions Excel/PDF/OCR, règles récurrentes et paiements complexes restent indisponibles.
+Le prochain contrôle porte sur le lancement Windows et le format du relevé réel de l’utilisateur.
+Excel, les factures justificatives jointes, les règles récurrentes et les paiements complexes restent indisponibles.
 Les détails des vérifications réellement exécutées sont dans docs/RECETTE.md.

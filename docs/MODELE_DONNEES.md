@@ -1,9 +1,9 @@
-# Modèle de données de la V1
+# Modèle de données — version 0.2.0
 
-Deux bases SQLite distinctes : data/real.sqlite et data/demo.sqlite. Migration 1 suivie par la table migrations, mode WAL, transactions BEGIN IMMEDIATE pour les lots. Aucun fichier importé n’est servi publiquement.
+Deux bases SQLite distinctes : data/real.sqlite et data/demo.sqlite. Migrations 1 et 2 suivies par la table migrations, mode WAL, transactions BEGIN IMMEDIATE pour les lots. La migration 2 ajoute le support PDF aux documents JSON sans réécrire les anciennes opérations CSV. Aucun fichier importé n’est servi publiquement.
 
-- **imports** : UUID, compte, nom d’origine (métadonnée uniquement), contenu binaire CSV encodé en base64, empreinte SHA-256, date, encodage, séparateur, correspondance des colonnes, soldes saisis et lignes volontairement exclues.
-- **operations** : identifiant local, UUID d’import, ligne source et cellules brutes, compte, date bancaire, libellé, TTC bancaire signé en centimes, état, révision et ventilations.
+- **imports** : UUID, compte, nom d’origine (métadonnée uniquement), format CSV/PDF (CSV par défaut pour les anciennes données), original binaire en base64, empreinte SHA-256, date, soldes saisis et lignes volontairement exclues. Pour le CSV : encodage, séparateur et colonnes. Pour le PDF : nombre de pages, méthode texte/OCR, zones de colonnes, année/période, confirmation de revue et texte source indexé par page/ligne avec confiance OCR.
+- **operations** : identifiant local, UUID d’import, ligne source et cellules/textes bruts, compte, date bancaire, libellé, TTC bancaire signé en centimes, état, révision et ventilations. Pour le PDF : page principale, méthode de lecture et références de toutes les lignes d’origine, y compris les suites de libellé.
 - **ventilations** : identifiant unique au sein du mouvement, montant bancaire signé, nature, traitement distinct, taux en centièmes de pourcentage, coefficient de déduction, HT/TVA facturés optionnels, trois confirmations explicites, date facture, date TVA, référence du justificatif, note.
 - **history** : snapshots avant/après des qualifications, date et type édition/annulation. L’annulation restaure le contenu avec une nouvelle révision, sans effacer la trace.
 - **metadata** : régime confirmé, liste de taux manuels, mois verrouillés, régularisations et crédit antérieur par triplet JSON [début, fin, compte].
@@ -13,3 +13,7 @@ Invariants côté serveur : montants entiers bornés ; somme des ventilations ex
 Les champs bancaires ne sont plus modifiables après import. Leurs corrections se font dans l’aperçu avant import, en conservant les cellules originales. Une entrée bancaire ne détermine jamais automatiquement sa nature ou son droit à déduction.
 
 Une révision protège les modifications contre les fenêtres devenues périmées. La restauration affecte une nouvelle révision aux opérations pour invalider les formulaires antérieurs. Les écritures de la restauration se font dans une seule transaction après validation de tout le contenu et sauvegarde de l’état précédent. Les sources originales, paramètres, historique et verrous font partie du fichier de sauvegarde.
+
+La sauvegarde émet le format 2 et accepte les formats 1 et 2. L’empreinte est vérifiée sur le contenu reçu avant ajout de valeurs par défaut. Les références PDF doivent correspondre aux pages/lignes de la source conservée ; une incohérence annule la restauration. L’original est téléchargeable par la route locale protégée du relevé, avec le type et l’extension correspondants. L’export CSV inclut page, méthode et références PDF.
+
+Avant confirmation d’import, le PDF et ses images d’aperçu sont conservés uniquement en mémoire dans un travail local isolé par espace, limité à trois aperçus et quinze minutes sans activité. L’écran maintient l’aperçu actif pendant sa vérification ; la fermeture l’annule. Le traitement s’effectue dans un worker avec délai de trois minutes, limites de pages/taille/images et modèle OCR français installé localement. Le PDF n’est persisté qu’au moment de l’import atomique, avec ses corrections et lignes exclues. Aucune lecture OCR ne confirme une qualification fiscale.
