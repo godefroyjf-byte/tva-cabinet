@@ -1,8 +1,8 @@
-# Recette de la version 0.2.0
+# Recette de la version 0.2.1
 
 Données exclusivement fictives. Vérifications réalisées sous Linux avec Node.js 24.19.0, npm 11.9.0 et Chromium système, le 20 octobre 2026.
 
-Résultat final : **38 tests métier/persistance/API/lanceur réussis et 5 scénarios navigateur réussis**, sans test ignoré. Types et build réussis.
+Résultat final : **39 tests métier/persistance/API/lanceur réussis et 5 scénarios navigateur réussis**, sans test ignoré. Types et build réussis.
 
 ## Vérifications automatiques
 
@@ -22,10 +22,11 @@ Résultat final : **38 tests métier/persistance/API/lanceur réussis et 5 scén
 - PDF : doublons entre CSV et PDF, séparation des comptes, lignes non interprétées visibles et ajout manuel, exclusions explicites, montant mal reconnu conservé en erreur, confirmation de revue obligatoire et refus atomique d’un écart de soldes.
 - OCR français : véritable reconnaissance d’un PDF raster fictif d’une page, trois mouvements et soldes recoupés. Un processus de test interdit tout accès HTTP/HTTPS et fetch, y compris dans les workers ; la lecture réussit avec le modèle installé localement.
 - PDF protégés et endommagés : erreurs explicites sans import. API : lecture asynchrone, image de page locale, isolation réel/démonstration, confirmation, original identique octet par octet et annulation de l’aperçu.
+- Correctif Windows 0.2.1 : reproduction du refus par PDF.js de chemins terminés par un antislash pour les trois options de ressources. Les chemins corrigés sont acceptés par la bibliothèque réelle ; espaces, accents, caractères « # » et préfixe réseau UNC sont couverts. Les fichiers de polices, CMaps et WASM installés restent lisibles directement depuis le disque. Ce test sous Linux ne remplace pas l’exécution complète sur Windows.
 - PDF persistants : original, pages/lignes, méthode texte/OCR et corrections retrouvés après réouverture et restauration ; incohérence de provenance refusée sans altérer l’état. Migration d’une base CSV et restauration d’une ancienne sauvegarde de format 1 vérifiées.
 - Navigateur PDF : lecture sur deux pages avec original affiché, correction et actualisation, confirmation obligatoire, huit mouvements importés après détection du doublon, original téléchargé, rechargement et sauvegarde/restauration. Aucun appel réseau externe ni erreur JavaScript sur le parcours texte.
 - Navigateur scan : OCR réel, trois mouvements, avertissement de contrôle et confirmation, refus de réimporter le même document.
-- Mise à jour : installation complète par `scripts/prepare.mjs`, reconstruction après modification des sources et second lancement sans réinstallation/reconstruction inutiles. Le nouveau lanceur attend le signal réel d’écoute du serveur avant d’ouvrir le navigateur ; interface et API de version 0.2.0 contrôlées sur un port et un dossier temporaires. Un test de conflit de port vérifie le refus sans ouvrir une ancienne instance, puis l’arrêt propre du serveur lancé.
+- Mise à jour : installation complète par `scripts/prepare.mjs`, reconstruction après modification des sources et second lancement sans réinstallation/reconstruction inutiles. Le nouveau lanceur attend le signal réel d’écoute du serveur avant d’ouvrir le navigateur ; interface et API de version 0.2.1 contrôlées sur un port et un dossier temporaires. Un test de conflit de port vérifie le refus sans ouvrir une ancienne instance, puis l’arrêt propre du serveur lancé.
 
 ## Formats PDF réellement vérifiés
 

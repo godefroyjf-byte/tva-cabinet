@@ -1,6 +1,6 @@
 # Plan d'implémentation
 
-État au 20 octobre 2026 : version 0.2.0 avec imports PDF texte et scans par OCR français local, en plus du parcours CSV. Aucun déploiement public.
+État au 20 octobre 2026 : version 0.2.1 avec imports PDF texte et scans par OCR français local, en plus du parcours CSV. Aucun déploiement public.
 
 ## Lot 1 — Fondation
 - [x] Initialiser React/TypeScript, Node.js/TypeScript, SQLite et lockfile npm.
@@ -36,6 +36,7 @@ les calculs se recoupent, les données sont retrouvées au redémarrage.
 - [x] Limites et erreurs des PDF protégés/endommagés ; lecture asynchrone avec progression et annulation.
 - [x] Sources PDF persistantes, sauvegarde format 2 et lecture des anciennes sauvegardes CSV format 1.
 - [x] Documentation des formats réellement testés : exemples fictifs à colonnes de type Société Générale, texte multi-pages et scan lisible.
+- [x] Correctif Windows des chemins de ressources PDF.js : erreur « Invalid factory url … must include trailing slash » reproduite et couverte par un test de régression pour les polices, CMaps et modules WASM.
 - [ ] Vérification sur un relevé Société Générale réel de l’utilisateur.
 - [ ] Paiements partiels, commissions et cas documentaires avancés.
 

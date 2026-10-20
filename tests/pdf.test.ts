@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync,mkdtempSync,rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname,join } from 'node:path';
+import {fileURLToPath} from 'node:url';
 import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import { extractPdf } from '../server/pdf-extract.ts';
+import {getDocument} from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { extractPdf,pdfResourcePaths } from '../server/pdf-extract.ts';
 import { previewPdf,parsePdfMoney } from '../server/pdf-preview.ts';
 import { Store } from '../server/store.ts';
 import { createApp } from '../server/index.ts';
@@ -23,6 +25,22 @@ function importRequest() {
   const p=previewPdf(job.document,options,[]);
   return {...p.options,selectedLines:p.rows.filter(r=>!r.duplicate&&!r.error).map(r=>r.line),acceptRejected:false,confirmDuplicates:false,reviewed:true};
 }
+test('PDF sous Windows : reproduit le refus des antislashs finaux et accepte les chemins corrigés pour toutes les ressources',async()=>{
+  const windowsDirectory=String.raw`C:\Users\Utilisateur test\Téléchargements\TVA #1\node_modules\pdfjs-dist`;
+  const bytes=()=>new Uint8Array(Buffer.from(base64,'base64'));
+  for(const kind of ['cMapUrl','standardFontDataUrl','wasmUrl']) {
+    assert.throws(()=>getDocument({data:bytes(),[kind]:windowsDirectory+'\\cmaps\\'}),/Invalid factory url:.*must include trailing slash/);
+  }
+  const paths=pdfResourcePaths(windowsDirectory);
+  assert.equal(paths.cMapUrl,'C:/Users/Utilisateur test/Téléchargements/TVA #1/node_modules/pdfjs-dist/cmaps/');
+  assert.equal(pdfResourcePaths(String.raw`\\serveur\partage\TVA`).wasmUrl,'//serveur/partage/TVA/wasm/');
+  const task=getDocument({data:bytes(),...paths,useWorkerFetch:false,verbosity:0});
+  try {assert.equal((await task.promise).numPages,2);}finally{await task.destroy();}
+  const installed=pdfResourcePaths(dirname(fileURLToPath(import.meta.resolve('pdfjs-dist/package.json'))));
+  assert.ok(readFileSync(installed.cMapUrl+'Adobe-Japan1-UCS2.bcmap').length>0);
+  assert.ok(readFileSync(installed.standardFontDataUrl+'LiberationSans-Regular.ttf').length>0);
+  assert.ok(readFileSync(installed.wasmUrl+'openjpeg.wasm').length>0);
+});
 test('PDF texte multi-pages de type SG : neuf mouvements, dates d’opération, signes et libellé sur deux lignes',()=>{
   const p=previewPdf(job.document,options,[]);
   assert.equal(p.pageCount,2);assert.equal(p.rows.length,9);assert.equal(p.errorCount,0);assert.equal(p.duplicateCount,1);

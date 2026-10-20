@@ -1,12 +1,17 @@
 import { createCanvas } from '@napi-rs/canvas';
 import { createWorker,PSM,type Worker as OcrWorker } from 'tesseract.js';
-import { dirname,join,sep } from 'node:path';
+import { dirname,join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getDocument,OPS } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { PdfDocument,PdfLine,PdfProgress,PdfWord } from '../shared/pdf.ts';
 
 const pdfDirectory=dirname(fileURLToPath(import.meta.resolve('pdfjs-dist/package.json')));
 const languageDirectory=dirname(fileURLToPath(import.meta.resolve('@tesseract.js-data/fra/package.json')));
+export function pdfResourcePaths(directory:string) {
+  // PDF.js exige des chemins locaux terminés par « / », même sous Windows.
+  const root=directory.replaceAll('\\','/').replace(/\/+$/,'');
+  return {standardFontDataUrl:root+'/standard_fonts/',cMapUrl:root+'/cmaps/',wasmUrl:root+'/wasm/'};
+}
 function groupWords(words:PdfWord[],page:number,method:'text'|'ocr'):PdfLine[] {
   const groups:PdfWord[][]=[];
   for(const word of words.sort((a,b)=>a.top-b.top||a.left-b.left)) {
@@ -24,8 +29,7 @@ function groupWords(words:PdfWord[],page:number,method:'text'|'ocr'):PdfLine[] {
 export async function extractPdf(bytes:Uint8Array,forceOcr=false,onProgress:(progress:PdfProgress)=>void=()=>{}) {
   const task=getDocument({data:bytes,enableXfa:false,useWorkerFetch:false,disableFontFace:true,useSystemFonts:false,
     verbosity:0,stopAtErrors:true,maxImageSize:16_000_000,isOffscreenCanvasSupported:false,isImageDecoderSupported:false,
-    standardFontDataUrl:join(pdfDirectory,'standard_fonts')+sep,cMapUrl:join(pdfDirectory,'cmaps')+sep,cMapPacked:true,
-    wasmUrl:join(pdfDirectory,'wasm')+sep});
+    ...pdfResourcePaths(pdfDirectory),cMapPacked:true});
   let document:Awaited<typeof task.promise>|undefined,ocr:OcrWorker|undefined;
   const result:PdfDocument={pages:[],warnings:[]},images:Record<number,Uint8Array>={};
   let imageBytes=0,nextId=1;

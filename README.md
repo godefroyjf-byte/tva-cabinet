@@ -1,6 +1,8 @@
-# TVA Cabinet — version locale 0.2.0
+# TVA Cabinet — version locale 0.2.1
 
 Importer directement ses relevés **PDF**, qualifier les mouvements par clic, séparer la TVA confirmée des estimations, exporter la vue et retrouver ses données au redémarrage. Les PDF contenant du texte et les scans lisibles sont traités localement, avec reconnaissance de texte en français (OCR) pour les scans. Aucun CSV n’est nécessaire. Application française mono-utilisateur : React/TypeScript, Node.js 24 et SQLite. Aucun compte, abonnement ni clé API.
+
+La version **0.2.1** corrige l’erreur Windows « Invalid factory url … must include trailing slash » lors de l’ouverture d’un PDF. Les chemins des ressources PDF locales utilisent maintenant les séparateurs attendus par PDF.js. Les données et les sauvegardes restent compatibles.
 
 ## Utiliser sous Windows
 

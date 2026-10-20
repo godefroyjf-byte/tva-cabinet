@@ -27,7 +27,7 @@ test('Lanceur : attend sa propre instance, refuse un port occupé et arrête pro
     for(let n=0;n<150&&!running.output.includes('Gardez cette fenêtre');n++)await new Promise(resolve=>setTimeout(resolve,30));
     assert.match(running.output,/Gardez cette fenêtre/);
     const response=await fetch('http://127.0.0.1:'+port+'/api/state');assert.equal(response.status,200);
-    const state=await response.json();assert.equal(state.version,'0.2.0');assert.equal(state.operations.length,0);
+    const state=await response.json();assert.equal(state.version,'0.2.1');assert.equal(state.operations.length,0);
     const page=await fetch('http://127.0.0.1:'+port+'/');assert.equal(page.status,200);assert.match(await page.text(),/TVA Cabinet/);
     const conflict=start('second');
     assert.equal(await conflict.closed,1,conflict.output);
